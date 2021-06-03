@@ -113,7 +113,7 @@ class StyleTransformer(object):
 
 
     def __call__(self, content_image: torch.Tensor, style_image: torch.Tensor, 
-                  num_steps=500, style_weight=100000, content_weight=1):
+                  num_steps=100, style_weight=100000, content_weight=1):
         if self.__check_images_sizes(content_image, style_image) == False:
             raise RuntimeError("uncorrect size of image")
 
