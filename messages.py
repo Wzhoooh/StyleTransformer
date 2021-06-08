@@ -1,23 +1,25 @@
-CUR_LANG = "RUS"
-
 LANGS = [ "ENG", "RUS" ]
 
 
 COMMANDS = {
     "start": {
-        LANGS[0]: "Hello, this bot can do style transferring. To learn how, use /help command",
-        LANGS[1]: "Добрый день, этот бот умеет делать перенос стиля. Чтобы узнать, как воспольльуйтесь командой /help"
+        LANGS[0]: "Hello, this bot can do style transferring. To start, use /process command",
+        LANGS[1]: "Добрый день, этот бот умеет делать перенос стиля. Чтобы начать, воспользуйтесь командой /process"
     },
     "help": {
         LANGS[0]: "This is /help documentation",
         LANGS[1]: "Это /help документация"
+    },
+    "cancel": {
+        LANGS[0]: "Cancelled",
+        LANGS[1]: "Отменено"
     }
 }
 
 MESSAGES = {
     "SEND_ME_CONTENT_IMAGE": {
-        LANGS[0]: "Send me content image",
-        LANGS[1]: "Пошлите мне сообщение с контентом"
+        LANGS[0]: "Send me source image",
+        LANGS[1]: "Пошлите мне исходное изображение"
     },
     "SEND_ME_STYLE_IMAGE": {
         LANGS[0]: "Send me style image",
@@ -34,8 +36,17 @@ MESSAGES = {
     "WARNING": {
         LANGS[0]: "Warning!: ",
         LANGS[1]: "Внимание!: "
+    },
+    "CHOOSING_LANGUAGE": {
+        LANGS[0]: "Choose language",
+        LANGS[1]: "Выберите язык"
+    },
+    "LANGUAGE_CHANGED": {
+        LANGS[0]: "Language changed",
+        LANGS[1]: "Язык изменен"
     }
 }
+
 
 WARNINGS = {
     "TOO_BIG_IMAGE_WAS_COMPRESSED": {
@@ -49,7 +60,12 @@ WARNINGS = {
     "TOO_BIG_VALUE": {
         LANGS[0]: "it is too big value",
         LANGS[1]: "это слишком большое значение"
+    },
+    "UNKNOWN_LANGUAGE": {
+        LANGS[0]: "I don't know this language",
+        LANGS[1]: "я не знаю этот язык"
     }
+
 }
 
 def warn(warning, language) -> str:

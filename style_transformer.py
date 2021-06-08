@@ -130,8 +130,9 @@ class StyleTransformer(object):
         content_image = content_image.to(self._device)
         style_image = style_image.to(self._device)
         input_image = content_image.clone().to(self._device)
-        return self.__run_style_transfer(content_image, style_image, input_image, num_steps, 
+        result = self.__run_style_transfer(content_image, style_image, input_image, num_steps, 
                            style_weight, content_weight)
+        return result
         
 
     def __check_images_sizes(self, content_image: torch.Tensor, style_image: torch.Tensor):

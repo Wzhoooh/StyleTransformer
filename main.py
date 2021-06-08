@@ -17,7 +17,7 @@ from aiogram.contrib.middlewares.logging import LoggingMiddleware
 import style_transformer as st_tr
 import properties as prop
 import messages
-from utils import PhotosStates 
+from utils import States 
 import tokens
 
 def save_tensor_as_image(t: torch.Tensor, img_name):
@@ -25,7 +25,19 @@ def save_tensor_as_image(t: torch.Tensor, img_name):
     t = transforms.ToPILImage(mode='RGB')(t)
     t.save(img_name)
 
-    
+
+async def get_field(state: FSMContext, field_name: str):
+    all_fields = await state.get_data()
+    return all_fields.get(field_name)
+
+
+async def get_language(state: FSMContext):
+    language = await get_field(state, "language")
+    if language == None:
+        return prop.DEFAULT_LANGUAGE
+    else:
+        return language
+
 
 async def process_images(content_msg: types.Message, style_msg: types.Message):
     # getting files names
@@ -51,7 +63,8 @@ async def process_images(content_msg: types.Message, style_msg: types.Message):
     save_tensor_as_image(style_img, "images/style_intermed.jpg")
     '''
     style_transformer = st_tr.StyleTransformer()
-    tensor_image = style_transformer(content_img, style_img, num_steps=prop.NUM_STEPS).squeeze(0)
+    tensor_image = style_transformer(content_img, style_img, num_steps=prop.NUM_STEPS)
+    tensor_image = tensor_image.squeeze(0)
     image = transforms.ToPILImage(mode='RGB')(tensor_image)
     image.save(output_img_file_name)
 
@@ -61,27 +74,53 @@ async def process_images(content_msg: types.Message, style_msg: types.Message):
     return output_img_file_name
 
 
-async def process_help_command(msg: types.Message):
-    await msg.answer(messages.COMMANDS["help"][messages.CUR_LANG])
+async def process_start_command(msg: types.Message):
+    await States.init_state.set()
+    await msg.answer(messages.COMMANDS["start"][prop.DEFAULT_LANGUAGE])
 
 
-async def start_getting_images(msg: types.Message):
-    await PhotosStates.waiting_for_content_image.set()
-    await msg.answer(messages.MESSAGES["SEND_ME_CONTENT_IMAGE"][messages.CUR_LANG])
+async def process_help_command(msg: types.Message, state: FSMContext):
+    await msg.answer(messages.COMMANDS["help"][await get_language(state)])
+
+
+async def process_cancel_command(msg: types.Message, state: FSMContext):
+    await States.init_state.set()
+    await msg.answer(messages.COMMANDS["cancel"][await get_language(state)])
+
+
+async def process_language_command(msg: types.Message, state: FSMContext):
+    await States.waiting_for_language.set()
+    await msg.answer(messages.MESSAGES["CHOOSING_LANGUAGE"][await get_language(state)])
+
+
+async def choosing_language(msg: types.Message, state: FSMContext):
+    new_lang = msg.text.upper()
+    if new_lang in messages.LANGS:
+        await state.update_data(language=new_lang)
+        await msg.answer(messages.MESSAGES["LANGUAGE_CHANGED"][await get_language(state)])
+    else:
+         await msg.answer(messages.warn("UNKNOWN_LANGUAGE", await get_language(state)))
+   
+    await States.init_state.set()
+    
+
+async def start_getting_images(msg: types.Message, state: FSMContext):
+    await States.waiting_for_content_image.set()
+    await msg.answer(messages.MESSAGES["SEND_ME_CONTENT_IMAGE"][await get_language(state)])
 
 
 async def getting_content_image(msg: types.Message, state: FSMContext):
     await state.update_data(content_img=msg)
     if msg.photo[-1]["height"] > prop.MAX_IMG_SIDE_SIZE or msg.photo[-1]["height"] > prop.MAX_IMG_SIDE_SIZE:
-        await msg.answer(messages.warn("TOO_BIG_IMAGE_WAS_COMPRESSED", messages.CUR_LANG))
+        await msg.answer(messages.warn("TOO_BIG_IMAGE_WAS_COMPRESSED", await get_language(state)))
 
-    await PhotosStates.waiting_for_style_image.set()
-    await msg.answer(messages.MESSAGES["SEND_ME_STYLE_IMAGE"][messages.CUR_LANG])
+    await States.waiting_for_style_image.set()
+    await msg.answer(messages.MESSAGES["SEND_ME_STYLE_IMAGE"][await get_language(state)])
 
     
 async def getting_style_image(msg: types.Message, state: FSMContext):
     await state.update_data(style_img=msg)
-    await msg.answer(messages.MESSAGES["WAIT_FOR_SEVERAL_MINUTES"][messages.CUR_LANG])
+    await msg.answer(messages.MESSAGES["WAIT_FOR_SEVERAL_MINUTES"][await get_language(state)])
 
     info = await state.get_data()
     output_img_file_name = await process_images(info["content_img"], info["style_img"])
@@ -89,13 +128,23 @@ async def getting_style_image(msg: types.Message, state: FSMContext):
     await bot.send_photo(msg.from_user.id, output_img)
 
     os.remove(output_img_file_name)
+    await States.init_state.set()
+
+
+async def unknown_message(msg: types.Message, state: FSMContext):
+    await msg.reply(messages.MESSAGES["UNKNOWN_COMMAND"][await get_language(state)])
 
 
 def register_handlers(dp: Dispatcher):
-    dp.register_message_handler(process_help_command, commands=["help"], state="*")
-    dp.register_message_handler(start_getting_images, commands=["start"], state="*")
-    dp.register_message_handler(getting_content_image, content_types=types.message.ContentType.PHOTO, state=PhotosStates.waiting_for_content_image)
-    dp.register_message_handler(getting_style_image, content_types=types.message.ContentType.PHOTO, state=PhotosStates.waiting_for_style_image)
+    dp.register_message_handler(process_start_command, commands=["start"], state="*")
+    dp.register_message_handler(process_help_command, commands=["help"], state=States.init_state)
+    dp.register_message_handler(process_cancel_command, commands=["cancel"], state=States.init_state)
+    dp.register_message_handler(process_language_command, commands=["language"], state=States.init_state)
+    dp.register_message_handler(choosing_language, content_types=types.message.ContentType.TEXT, state=States.waiting_for_language)
+    dp.register_message_handler(start_getting_images, commands=["process"], state=States.init_state)
+    dp.register_message_handler(getting_content_image, content_types=types.message.ContentType.PHOTO, state=States.waiting_for_content_image)
+    dp.register_message_handler(getting_style_image, content_types=types.message.ContentType.PHOTO, state=States.waiting_for_style_image)
+    dp.register_message_handler(unknown_message, content_types=types.message.ContentType.ANY, state="*")
 
 
 bot = Bot(token=tokens.TOKEN)
@@ -108,9 +157,6 @@ register_handlers(dp)
 async def echo_message(msg: types.Message):
     await msg.answer(messages.MESSAGES["UNKNOWN_COMMAND"][messages.CUR_LANG])
 '''
-@dp.message_handler(content_types=types.message.ContentType.ANY, state="*")
-async def unknown_message(msg: types.Message):
-    await msg.reply(messages.MESSAGES["UNKNOWN_COMMAND"][messages.CUR_LANG])
 
 
 if __name__ == '__main__':

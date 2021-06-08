@@ -1,22 +1,3 @@
-
-LANGS = [ "ENG", "RUS" ]
-
-WARNINGS = {
-    "TOO_BIG_IMAGE_WAS_COMPRESSED": {
-        LANGS[0]: "it is too big size of image, image was compressed",
-        LANGS[1]: "слишком большой размер изображения, изображение было сжато"
-    },
-    "NEGATIVE_VALUE_MUST_BE_POSITIVE": {
-        LANGS[0]: "this value must be positive",
-        LANGS[1]: "это значение должно быть положительным"
-    },
-    "TOO_BIG_VALUE": {
-        LANGS[0]: "it is too big value",
-        LANGS[1]: "это слишком большое значение"
-    }
-}
-    
-
     
 class Result(object):
     __value = None
