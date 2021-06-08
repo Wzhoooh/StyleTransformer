@@ -2,6 +2,7 @@ import torch
 import torchvision.transforms as transforms
 
 from PIL import Image
+import os
 
 import aiogram
 from aiogram import Bot, types
@@ -15,7 +16,7 @@ from aiogram.contrib.middlewares.logging import LoggingMiddleware
 
 import style_transformer as st_tr
 import properties as prop
-from messages import MESSAGES
+import messages
 from utils import PhotosStates 
 import tokens
 
@@ -43,46 +44,55 @@ async def process_images(content_msg: types.Message, style_msg: types.Message):
     content_img = Image.open(content_img_file_name)
     style_img = Image.open(style_img_file_name)
 
-    image_transformer = st_tr.ImageTransformer()
+    image_transformer = st_tr.ImageTransformer(max_img_side_size=prop.MAX_IMG_SIDE_SIZE)
     content_img, style_img = image_transformer(content_img, style_img)
-
-    save_tensor_as_image(content_img, "content_intermed.jpg")
-    save_tensor_as_image(style_img, "style_intermed.jpg")
-
+    '''       
+    save_tensor_as_image(content_img, "images/content_intermed.jpg")
+    save_tensor_as_image(style_img, "images/style_intermed.jpg")
+    '''
     style_transformer = st_tr.StyleTransformer()
     tensor_image = style_transformer(content_img, style_img, num_steps=prop.NUM_STEPS).squeeze(0)
     image = transforms.ToPILImage(mode='RGB')(tensor_image)
     image.save(output_img_file_name)
-'''
-    await os.remove(content_img_file_name)
-    await os.remove(style_img_file_name)
-'''
+
+    os.remove(content_img_file_name)
+    os.remove(style_img_file_name)
+
     return output_img_file_name
+
+
+async def process_help_command(msg: types.Message):
+    await msg.answer(messages.COMMANDS["help"][messages.CUR_LANG])
+
 
 async def start_getting_images(msg: types.Message):
     await PhotosStates.waiting_for_content_image.set()
-    await msg.answer("Send me content image")
+    await msg.answer(messages.MESSAGES["SEND_ME_CONTENT_IMAGE"][messages.CUR_LANG])
 
 
 async def getting_content_image(msg: types.Message, state: FSMContext):
     await state.update_data(content_img=msg)
+    if msg.photo[-1]["height"] > prop.MAX_IMG_SIDE_SIZE or msg.photo[-1]["height"] > prop.MAX_IMG_SIDE_SIZE:
+        await msg.answer(messages.warn("TOO_BIG_IMAGE_WAS_COMPRESSED", messages.CUR_LANG))
+
     await PhotosStates.waiting_for_style_image.set()
-    await msg.answer("Send me style image")
+    await msg.answer(messages.MESSAGES["SEND_ME_STYLE_IMAGE"][messages.CUR_LANG])
 
     
 async def getting_style_image(msg: types.Message, state: FSMContext):
     await state.update_data(style_img=msg)
-    await msg.answer("Wait several minutes")
+    await msg.answer(messages.MESSAGES["WAIT_FOR_SEVERAL_MINUTES"][messages.CUR_LANG])
+
     info = await state.get_data()
     output_img_file_name = await process_images(info["content_img"], info["style_img"])
     output_img = types.input_file.InputFile(output_img_file_name)
     await bot.send_photo(msg.from_user.id, output_img)
-'''
-    await os.remove(output_img_file_name)
-'''
+
+    os.remove(output_img_file_name)
 
 
 def register_handlers(dp: Dispatcher):
+    dp.register_message_handler(process_help_command, commands=["help"], state="*")
     dp.register_message_handler(start_getting_images, commands=["start"], state="*")
     dp.register_message_handler(getting_content_image, content_types=types.message.ContentType.PHOTO, state=PhotosStates.waiting_for_content_image)
     dp.register_message_handler(getting_style_image, content_types=types.message.ContentType.PHOTO, state=PhotosStates.waiting_for_style_image)
@@ -94,33 +104,14 @@ dp.middleware.setup(LoggingMiddleware())
 
 register_handlers(dp)
 '''
-@dp.message_handler(commands=["start"])
-async def process_start_command(msg: types.Message):
-    await bot.send_message(msg.from_user.id, MESSAGES["start"])
-
-@dp.message_handler(commands=["help"])
-async def process_help_command(msg: types.Message):
-    await bot.send_message(msg.from_user.id, MESSAGES["help"])
-
-@dp.message_handler(commands=["photo"])
-async def process_photo_command(msg: types.Message):
-    photo = types.input_file.InputFile("images/output.jpg")
-    await bot.send_photo(msg.from_user.id, photo)
-
-@dp.message_handler(content_types=types.message.ContentType.PHOTO)
-async def photo_handler(msg: types.Message):
-    state = dp.current_state(user=msg.from_user.id)
-    
-    await bot.send_photo(msg.from_user.id, msg.photo[-1]["file_id"])
-
 @dp.message_handler()
 async def echo_message(msg: types.Message):
-    await bot.send_message(msg.from_user.id, msg.text)
-
-@dp.message_handler(content_types=types.message.ContentType.ANY)
-async def unknown_message(msg: types.Message):
-    await msg.reply(MESSAGES["unknown"])
+    await msg.answer(messages.MESSAGES["UNKNOWN_COMMAND"][messages.CUR_LANG])
 '''
+@dp.message_handler(content_types=types.message.ContentType.ANY, state="*")
+async def unknown_message(msg: types.Message):
+    await msg.reply(messages.MESSAGES["UNKNOWN_COMMAND"][messages.CUR_LANG])
+
 
 if __name__ == '__main__':
     executor.start_polling(dp)

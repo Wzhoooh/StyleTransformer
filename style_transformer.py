@@ -8,20 +8,31 @@ import torchvision.models as models
 
 import copy
 
+import result
 
 class ImageTransformer(object):
-    def __init__(self, max_size=1024):
-        self._max_size = max_size
+    def __init__(self, max_img_side_size):
+        self.__max_img_side_size = max_img_side_size
 
     def __call__(self, content_image, style_image, height=None, width=None):
+        warnings = []
+
         if height == None: # taking size of content_image
             _, height = content_image.size
 
         if width == None:
             width, _ = content_image.size
 
-        if height > self._max_size or width > self._max_size or height <= 0 or width <= 0: # checking size > max_size, size <= 0
-            raise RuntimeError("uncorrect size of image")
+        # compression of image if its side size > max_img_side_size
+        max_size = max([height, width])
+        compression_coef = 0.0
+        if max_size > self.__max_img_side_size:
+            compression_coef = self.__max_img_side_size / max_size
+            height = int(height * compression_coef)
+            width = int(width * compression_coef)
+
+        if height > self.__max_img_side_size or width > self.__max_img_side_size or height <= 0 or width <= 0:
+            raise ValueError("uncorrect size of image")
 
         loader = transforms.Compose([
             transforms.Resize(size=[height, width]), # нормируем размер изображения
@@ -30,11 +41,10 @@ class ImageTransformer(object):
 
         return (loader(content_image).unsqueeze(0).to(torch.float),
             loader(style_image).unsqueeze(0).to(torch.float))
-        
 
     @property
-    def max_size(self):
-        return self._max_size
+    def max_side_size(self):
+        return self.__max_side_size
         
         
 
@@ -88,8 +98,8 @@ class Normalization(nn.Module):
         # .view the mean and std to make them [C x 1 x 1] so that they can
         # directly work with image Tensor of shape [B x C x H x W].
         # B is batch size. C is number of channels. H is height and W is width.
-        self.mean = torch.tensor(mean).view(-1, 1, 1)
-        self.std = torch.tensor(std).view(-1, 1, 1)
+        self.mean = mean.clone().detach().view(-1, 1, 1) # torch.tensor(mean).view(-1, 1, 1)
+        self.std = std.clone().detach().view(-1, 1, 1) # torch.tensor(std).view(-1, 1, 1)
 
     def forward(self, img):
         # normalize img
@@ -115,7 +125,7 @@ class StyleTransformer(object):
     def __call__(self, content_image: torch.Tensor, style_image: torch.Tensor, 
                   num_steps=100, style_weight=100000, content_weight=1):
         if self.__check_images_sizes(content_image, style_image) == False:
-            raise RuntimeError("uncorrect size of image")
+            raise ValueError("uncorrect size of image")
 
         content_image = content_image.to(self._device)
         style_image = style_image.to(self._device)
@@ -160,7 +170,7 @@ class StyleTransformer(object):
             elif isinstance(layer, nn.BatchNorm2d):
                 name = 'bn_{}'.format(i)
             else:
-                raise RuntimeError('Unrecognized layer: {}'.format(layer.__class__.__name__))
+                raise ValueError('Unrecognized layer: {}'.format(layer.__class__.__name__))
 
             model.add_module(name, layer)
 
