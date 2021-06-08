@@ -12,6 +12,10 @@ from aiogram.dispatcher import Dispatcher
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 
+from aiogram.types import ReplyKeyboardRemove, \
+    ReplyKeyboardMarkup, KeyboardButton, \
+    InlineKeyboardMarkup, InlineKeyboardButton
+
 from aiogram.contrib.middlewares.logging import LoggingMiddleware
 
 import style_transformer as st_tr
@@ -37,6 +41,13 @@ async def get_language(state: FSMContext):
         return prop.DEFAULT_LANGUAGE
     else:
         return language
+
+def create_markup(names: list):
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    for i in names:
+        markup.add(KeyboardButton(i))
+    
+    return markup
 
 
 async def process_images(content_msg: types.Message, style_msg: types.Message):
@@ -76,37 +87,43 @@ async def process_images(content_msg: types.Message, style_msg: types.Message):
 
 async def process_start_command(msg: types.Message):
     await States.init_state.set()
-    await msg.answer(messages.COMMANDS["start"][prop.DEFAULT_LANGUAGE])
+    markup = create_markup(["/process", "/help", "/language"])
 
+    await msg.answer(messages.COMMANDS["START"][prop.DEFAULT_LANGUAGE], reply_markup=markup)
 
 async def process_help_command(msg: types.Message, state: FSMContext):
-    await msg.answer(messages.COMMANDS["help"][await get_language(state)])
+    markup = create_markup(["/process", "/help", "/language"])
+    await msg.answer(messages.COMMANDS["HELP"][await get_language(state)], reply_markup=markup)
 
 
 async def process_cancel_command(msg: types.Message, state: FSMContext):
+    markup = create_markup(["/process", "/help", "/language"])
     await States.init_state.set()
-    await msg.answer(messages.COMMANDS["cancel"][await get_language(state)])
+    await msg.answer(messages.COMMANDS["CANCEL"][await get_language(state)], reply_markup=markup)
 
 
 async def process_language_command(msg: types.Message, state: FSMContext):
+    markup = create_markup(messages.LANGS)
     await States.waiting_for_language.set()
-    await msg.answer(messages.MESSAGES["CHOOSING_LANGUAGE"][await get_language(state)])
+    await msg.answer(messages.COMMANDS["LANGUAGE"][await get_language(state)], reply_markup=markup)
 
 
 async def choosing_language(msg: types.Message, state: FSMContext):
+    markup = create_markup(["/process", "/help", "/language"])
     new_lang = msg.text.upper()
     if new_lang in messages.LANGS:
         await state.update_data(language=new_lang)
-        await msg.answer(messages.MESSAGES["LANGUAGE_CHANGED"][await get_language(state)])
+        await msg.answer(messages.MESSAGES["LANGUAGE_CHANGED"][await get_language(state)], reply_markup=markup)
     else:
-         await msg.answer(messages.warn("UNKNOWN_LANGUAGE", await get_language(state)))
+         await msg.answer(messages.warn("UNKNOWN_LANGUAGE", await get_language(state)), reply_markup=markup)
    
     await States.init_state.set()
     
 
 async def start_getting_images(msg: types.Message, state: FSMContext):
+    markup = create_markup(["/cancel"])
     await States.waiting_for_content_image.set()
-    await msg.answer(messages.MESSAGES["SEND_ME_CONTENT_IMAGE"][await get_language(state)])
+    await msg.answer(messages.MESSAGES["SEND_ME_CONTENT_IMAGE"][await get_language(state)], reply_markup=markup)
 
 
 async def getting_content_image(msg: types.Message, state: FSMContext):
@@ -114,8 +131,9 @@ async def getting_content_image(msg: types.Message, state: FSMContext):
     if msg.photo[-1]["height"] > prop.MAX_IMG_SIDE_SIZE or msg.photo[-1]["height"] > prop.MAX_IMG_SIDE_SIZE:
         await msg.answer(messages.warn("TOO_BIG_IMAGE_WAS_COMPRESSED", await get_language(state)))
 
+    markup = create_markup(["/cancel"])
     await States.waiting_for_style_image.set()
-    await msg.answer(messages.MESSAGES["SEND_ME_STYLE_IMAGE"][await get_language(state)])
+    await msg.answer(messages.MESSAGES["SEND_ME_STYLE_IMAGE"][await get_language(state)], reply_markup=markup)
 
     
 async def getting_style_image(msg: types.Message, state: FSMContext):
@@ -125,25 +143,37 @@ async def getting_style_image(msg: types.Message, state: FSMContext):
     info = await state.get_data()
     output_img_file_name = await process_images(info["content_img"], info["style_img"])
     output_img = types.input_file.InputFile(output_img_file_name)
-    await bot.send_photo(msg.from_user.id, output_img)
+    markup = create_markup(["/process", "/help", "/language"])
+    await bot.send_photo(msg.from_user.id, output_img, reply_markup=markup)
 
     os.remove(output_img_file_name)
     await States.init_state.set()
 
 
+async def unknown_message_in_processing(msg: types.Message, state: FSMContext):
+    markup = create_markup(["/cancel"])
+    await msg.reply(messages.MESSAGES["UNKNOWN_COMMAND"][await get_language(state)], reply_markup=markup)
+
+
 async def unknown_message(msg: types.Message, state: FSMContext):
-    await msg.reply(messages.MESSAGES["UNKNOWN_COMMAND"][await get_language(state)])
+    markup = create_markup(["/process", "/help", "/language"])
+    await msg.reply(messages.MESSAGES["UNKNOWN_COMMAND"][await get_language(state)], reply_markup=markup)
 
 
 def register_handlers(dp: Dispatcher):
     dp.register_message_handler(process_start_command, commands=["start"], state="*")
     dp.register_message_handler(process_help_command, commands=["help"], state=States.init_state)
-    dp.register_message_handler(process_cancel_command, commands=["cancel"], state=States.init_state)
+    dp.register_message_handler(process_cancel_command, commands=["cancel"], state="*")
+
     dp.register_message_handler(process_language_command, commands=["language"], state=States.init_state)
     dp.register_message_handler(choosing_language, content_types=types.message.ContentType.TEXT, state=States.waiting_for_language)
+
     dp.register_message_handler(start_getting_images, commands=["process"], state=States.init_state)
     dp.register_message_handler(getting_content_image, content_types=types.message.ContentType.PHOTO, state=States.waiting_for_content_image)
     dp.register_message_handler(getting_style_image, content_types=types.message.ContentType.PHOTO, state=States.waiting_for_style_image)
+    
+    dp.register_message_handler(unknown_message_in_processing, content_types=types.message.ContentType.ANY, state=States.waiting_for_content_image)
+    dp.register_message_handler(unknown_message_in_processing, content_types=types.message.ContentType.ANY, state=States.waiting_for_style_image)
     dp.register_message_handler(unknown_message, content_types=types.message.ContentType.ANY, state="*")
 
 

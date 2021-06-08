@@ -1,18 +1,42 @@
 LANGS = [ "ENG", "RUS" ]
 
 
+BUTTONS = {
+    "HELP": {
+        LANGS[0]: "help",
+        LANGS[1]: "пояснение"
+    },
+    "CANCEL": {
+        LANGS[0]: "cancel",
+        LANGS[1]: "отмена"
+    },
+    "LANGUAGE": {
+        LANGS[0]: "language",
+        LANGS[1]: "язык"
+    },
+    "PROCESS": {
+        LANGS[0]: "process",
+        LANGS[1]: "начать"
+    }
+}
+
+
 COMMANDS = {
-    "start": {
+    "START": {
         LANGS[0]: "Hello, this bot can do style transferring. To start, use /process command",
         LANGS[1]: "Добрый день, этот бот умеет делать перенос стиля. Чтобы начать, воспользуйтесь командой /process"
     },
-    "help": {
+    "HELP": {
         LANGS[0]: "This is /help documentation",
         LANGS[1]: "Это /help документация"
     },
-    "cancel": {
+    "CANCEL": {
         LANGS[0]: "Cancelled",
         LANGS[1]: "Отменено"
+    },
+    "LANGUAGE": {
+        LANGS[0]: "Choose language",
+        LANGS[1]: "Выберите язык"
     }
 }
 
@@ -36,10 +60,6 @@ MESSAGES = {
     "WARNING": {
         LANGS[0]: "Warning!: ",
         LANGS[1]: "Внимание!: "
-    },
-    "CHOOSING_LANGUAGE": {
-        LANGS[0]: "Choose language",
-        LANGS[1]: "Выберите язык"
     },
     "LANGUAGE_CHANGED": {
         LANGS[0]: "Language changed",
