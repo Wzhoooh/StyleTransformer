@@ -23,6 +23,8 @@ import properties as prop
 import messages
 from utils import States 
 import tokens
+import users
+
 
 def save_tensor_as_image(t: torch.Tensor, img_name):
     t = t.squeeze(0)
@@ -36,6 +38,9 @@ async def get_field(state: FSMContext, field_name: str):
 
 
 async def get_language(state: FSMContext):
+    if state == None:
+        return prop.DEFAULT_LANGUAGE
+
     language = await get_field(state, "language")
     if language == None:
         return prop.DEFAULT_LANGUAGE
@@ -86,6 +91,7 @@ async def process_images(content_msg: types.Message, style_msg: types.Message):
 
 
 async def process_start_command(msg: types.Message):
+    users.add_user(msg.from_user)
     await States.init_state.set()
     markup = create_markup(["/process", "/help", "/language"])
 
