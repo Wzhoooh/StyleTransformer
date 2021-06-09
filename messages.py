@@ -20,7 +20,6 @@ BUTTONS = {
     }
 }
 
-
 COMMANDS = {
     "START": {
         LANGS[0]: "Hello, this bot can do style transferring. To start, use /process command",
@@ -47,7 +46,11 @@ MESSAGES = {
     },
     "SEND_ME_STYLE_IMAGE": {
         LANGS[0]: "Send me style image",
-        LANGS[1]: "Пошлите мне сообщение со стилем"
+        LANGS[1]: "Пошлите мне изображение со стилем"
+    },
+    "IMAGE_RECEIVED": {
+        LANGS[0]: "Image received",
+        LANGS[1]: "Изображение получено"
     },
     "WAIT_FOR_SEVERAL_MINUTES": {
         LANGS[0]: "Wait for several minutes",
@@ -60,6 +63,10 @@ MESSAGES = {
     "WARNING": {
         LANGS[0]: "Warning!: ",
         LANGS[1]: "Внимание!: "
+    },
+    "ERROR": {
+        LANGS[0]: "Error!: ",
+        LANGS[1]: "Ошибка!: "
     },
     "LANGUAGE_CHANGED": {
         LANGS[0]: "Language changed",
@@ -84,9 +91,21 @@ WARNINGS = {
     "UNKNOWN_LANGUAGE": {
         LANGS[0]: "I don't know this language",
         LANGS[1]: "я не знаю этот язык"
+    },
+    "CONTENT_IMAGE_NOT_RECEIVED": {
+        LANGS[0]: "I didn't receive source image",
+        LANGS[1]: "я не получил исходное изображение"
+    },
+    "STYLE_IMAGE_NOT_RECEIVED": {
+        LANGS[0]: "I didn't receive style image",
+        LANGS[1]: "я не получил изображение со стилем"
     }
-
 }
 
 def warn(warning, language) -> str:
+    return MESSAGES["WARNING"][language] + WARNINGS[warning][language]
+
+def error(error, language) -> str:
+    return MESSAGES["ERROR"][language] + WARNINGS[error][language]
+
     return MESSAGES["WARNING"][language] + WARNINGS[warning][language]
