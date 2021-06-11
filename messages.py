@@ -22,12 +22,18 @@ BUTTONS = {
 
 COMMANDS = {
     "START": {
-        LANGS[0]: "Hello, this bot can do style transferring. To start, use /process command",
-        LANGS[1]: "Добрый день, этот бот умеет делать перенос стиля. Чтобы начать, воспользуйтесь командой /process"
+        LANGS[0]: "Hello! This bot can do style transfer. To load source image and image with \
+style, use /image and /style commands, respectively. To start style transfer, use /make_magic command.",
+        LANGS[1]: "Добрый день! Этот бот умеет делать перенос стиля. Чтобы загрузить исходное \
+изображение и изображение со стилем, используйте команды /image и /style соответственно. Для того, \
+чтобы запустить перенос стиля, используйте команду /make_magic."
     },
     "HELP": {
-        LANGS[0]: "This is /help documentation",
-        LANGS[1]: "Это /help документация"
+        LANGS[0]: "To load source image and image with style, use /image and /style commands, \
+respectively. To start style transfer, use /make_magic command.",
+        LANGS[1]: "Чтобы загрузить исходное изображение и изображение со стилем, используйте \
+команды /image и /style соответственно. Для того, чтобы запустить перенос стиля, используйте \
+команду /make_magic."
     },
     "CANCEL": {
         LANGS[0]: "Cancelled",
@@ -56,10 +62,6 @@ MESSAGES = {
         LANGS[0]: "Wait for several minutes",
         LANGS[1]: "Подождите несколько минут"
     },
-    "UNKNOWN_COMMAND": {
-        LANGS[0]: "I don't know this command. Use /help",
-        LANGS[1]: "Я не знаю такой команды. Используйте /help"
-    },
     "WARNING": {
         LANGS[0]: "Warning!: ",
         LANGS[1]: "Внимание!: "
@@ -87,6 +89,10 @@ WARNINGS = {
     "TOO_BIG_VALUE": {
         LANGS[0]: "it is too big value",
         LANGS[1]: "это слишком большое значение"
+    },
+    "UNKNOWN_COMMAND": {
+        LANGS[0]: "I don't know this command. Use /help",
+        LANGS[1]: "Я не знаю такой команды. Используйте /help"
     },
     "UNKNOWN_LANGUAGE": {
         LANGS[0]: "I don't know this language",

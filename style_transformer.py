@@ -8,6 +8,8 @@ import torchvision.models as models
 
 import copy
 
+import asyncio
+
 import result
 
 class ImageTransformer(object):
@@ -122,7 +124,7 @@ class StyleTransformer(object):
         self._style_layers = style_layers
 
 
-    def __call__(self, content_image: torch.Tensor, style_image: torch.Tensor, 
+    async def __call__(self, content_image: torch.Tensor, style_image: torch.Tensor, 
                   num_steps=100, style_weight=100000, content_weight=1):
         if self.__check_images_sizes(content_image, style_image) == False:
             raise ValueError("uncorrect size of image")
@@ -130,7 +132,7 @@ class StyleTransformer(object):
         content_image = content_image.to(self._device)
         style_image = style_image.to(self._device)
         input_image = content_image.clone().to(self._device)
-        result = self.__run_style_transfer(content_image, style_image, input_image, num_steps, 
+        result = await self.__run_style_transfer(content_image, style_image, input_image, num_steps, 
                            style_weight, content_weight)
         return result
         
@@ -139,7 +141,7 @@ class StyleTransformer(object):
         return content_image.shape == style_image.shape
         
 
-    def __get_style_model_and_losses(self, style_img, content_img):
+    async def __get_style_model_and_losses(self, style_img, content_img):
         cnn = copy.deepcopy(self._cnn)
 
         # normalization module
@@ -199,16 +201,17 @@ class StyleTransformer(object):
         return model, style_losses, content_losses
 
 
-    def __run_style_transfer(self, content_img, style_img, input_img, num_steps,
+    async def __run_style_transfer(self, content_img, style_img, input_img, num_steps,
                         style_weight, content_weight):
         """Run the style transfer."""
         print('Building the style transfer model..')
-        model, style_losses, content_losses = self.__get_style_model_and_losses(style_img, content_img)
-        optimizer = optim.LBFGS([input_img.requires_grad_()])
+        model, style_losses, content_losses = await self.__get_style_model_and_losses(style_img, content_img)
+        optimizer = optim.LBFGS([input_img.requires_grad_()], max_iter=1)
 
         print('Optimizing..')
         run = [0]
         while run[0] <= num_steps:
+            await asyncio.sleep(0) # asynchronicity :-)
 
             def closure():
                 # correct the values 
@@ -240,6 +243,7 @@ class StyleTransformer(object):
 
                 return style_score + content_score
 
+            await asyncio.sleep(0) # asynchronicity :-)
             optimizer.step(closure)
 
         # a last correction...

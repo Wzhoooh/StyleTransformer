@@ -84,7 +84,7 @@ async def process_images(content_msg: types.Message, style_msg: types.Message):
     save_tensor_as_image(style_img, "images/style_intermed.jpg")
     '''
     style_transformer = st_tr.StyleTransformer()
-    tensor_image = style_transformer(content_img, style_img, num_steps=prop.NUM_STEPS)
+    tensor_image = await style_transformer(content_img, style_img, num_steps=prop.NUM_STEPS)
     tensor_image = tensor_image.squeeze(0)
     image = transforms.ToPILImage(mode='RGB')(tensor_image)
     image.save(output_img_file_name)
@@ -193,18 +193,28 @@ def register_handlers(dp: Dispatcher):
     dp.register_message_handler(unknown_message, content_types=types.message.ContentType.ANY, state="*")
 
 
+'''
+# webhook settings
+WEBHOOK_HOST = "https://your.domain"
+WEBHOOK_PATH = "/path/to/api"
+WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
+
+# webserver settings
+WEBAPP_HOST = "localhost" # or ip
+WEBAPP_PORT = 3001
+'''
+
 bot = Bot(token=tokens.TOKEN)
 dp = Dispatcher(bot, storage=MemoryStorage())
 dp.middleware.setup(LoggingMiddleware())
 
 register_handlers(dp)
-'''
-@dp.message_handler()
-async def echo_message(msg: types.Message):
-    await msg.answer(messages.MESSAGES["UNKNOWN_COMMAND"][messages.CUR_LANG])
-'''
-
 
 if __name__ == '__main__':
-    executor.start_polling(dp)
+    if prop.CONNECTION_TYPE == "POLLING":
+        executor.start_polling(dp)
+    elif prop.CONNECTION_TYPE == "WEBHOOKS":
+        pass
+    else:
+        print("uncorrect CONNECTION_TYPE")
 
