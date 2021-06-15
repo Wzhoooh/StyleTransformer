@@ -1,8 +1,12 @@
 import torch
+import torchvision
 import torchvision.transforms as transforms
 
 from PIL import Image
 import os
+from urllib.parse import urljoin
+
+from pathlib import Path
 
 import aiogram
 from aiogram import Bot, types
@@ -64,6 +68,9 @@ async def process_images(content_msg: types.Message, style_msg: types.Message):
     # getting files names
     if content_msg.from_user.id != content_msg.from_user.id:
         raise RuntimeError("got messages from different clients")
+
+    # creting dir "images"
+    Path("images").mkdir(parents=True, exist_ok=True)
 
     user_id = content_msg.from_user.id
     content_img_file_name = f"images/{user_id}_content.jpg"
@@ -151,7 +158,7 @@ async def getting_style_image(msg: types.Message, state: FSMContext):
     await States.init_state.set()
     await msg.answer(messages.MESSAGES["IMAGE_RECEIVED"][await get_language(state)], reply_markup=MAIN_MENU)
 
-  
+
 async def process_make_magic_command(msg: types.Message, state: FSMContext):
     info = await state.get_data()
     content_img_id = info.get("content_img")
@@ -193,16 +200,16 @@ def register_handlers(dp: Dispatcher):
     dp.register_message_handler(unknown_message, content_types=types.message.ContentType.ANY, state="*")
 
 
-'''
-# webhook settings
-WEBHOOK_HOST = "https://your.domain"
-WEBHOOK_PATH = "/path/to/api"
-WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
+# webhook settings
+WEBHOOK_HOST = "https://afternoon-hollows-87094.herokuapp.com"
+WEBHOOK_PATH = f"/webhook/{tokens.TOKEN}"
+WEBHOOK_URL = urljoin(WEBHOOK_HOST, WEBHOOK_PATH)
+ 
 # webserver settings
-WEBAPP_HOST = "localhost" # or ip
-WEBAPP_PORT = 3001
-'''
+WEBAPP_HOST = "0.0.0.0"
+WEBAPP_PORT = int(os.environ.get('PORT', 5000))
+
 
 bot = Bot(token=tokens.TOKEN)
 dp = Dispatcher(bot, storage=MemoryStorage())
@@ -210,11 +217,34 @@ dp.middleware.setup(LoggingMiddleware())
 
 register_handlers(dp)
 
+
+async def on_startup(dp):
+    print('Starting...')
+    await bot.set_webhook(WEBHOOK_URL)
+
+async def on_shutdown(dp):
+    print('Shutting down...')
+    print('Bye!')
+
+
 if __name__ == '__main__':
+    print("main started")
     if prop.CONNECTION_TYPE == "POLLING":
+        print("connection is polling")
         executor.start_polling(dp)
     elif prop.CONNECTION_TYPE == "WEBHOOKS":
-        pass
+        print("host:", WEBAPP_HOST)
+        print("port:", WEBAPP_PORT)
+        print("url:", WEBHOOK_URL)
+        executor.start_webhook(
+            dispatcher=dp,
+            webhook_path=WEBHOOK_PATH,
+            on_startup=on_startup,
+            on_shutdown=on_shutdown,
+            skip_updates=True,
+            host=WEBAPP_HOST,
+            port=WEBAPP_PORT,
+        )
     else:
         print("uncorrect CONNECTION_TYPE")
 

@@ -10,7 +10,7 @@ import copy
 
 import asyncio
 
-import result
+import models
 
 class ImageTransformer(object):
     def __init__(self, max_img_side_size):
@@ -111,13 +111,15 @@ class Normalization(nn.Module):
 
 class StyleTransformer(object):
     def __init__(self, device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-                 cnn=models.vgg19(pretrained=True),
+                 cut_cnn_path="cut_vgg19.pth",
+                 cnn=None, #models.vgg19(pretrained=True),
                  cnn_normalization_mean=torch.tensor([0.485, 0.456, 0.406]),
                  cnn_normalization_std=torch.tensor([0.229, 0.224, 0.225]),
                  content_layers=['conv_4'],
                  style_layers=['conv_1', 'conv_2', 'conv_3', 'conv_4', 'conv_5']):
         self._device = device
-        self._cnn = cnn.features.to(device).eval()
+        self._cut_cnn_path = cut_cnn_path
+        self._cnn = cnn
         self._cnn_normalization_mean = cnn_normalization_mean.to(device)
         self._cnn_normalization_std = cnn_normalization_std.to(device)
         self._content_layers = content_layers
@@ -141,71 +143,25 @@ class StyleTransformer(object):
         return content_image.shape == style_image.shape
         
 
-    async def __get_style_model_and_losses(self, style_img, content_img):
-        cnn = copy.deepcopy(self._cnn)
-
-        # normalization module
-        normalization = Normalization(self._cnn_normalization_mean, self._cnn_normalization_std).to(self._device)
-
-        # just in order to have an iterable access to or list of content/syle
-        # losses
-        content_losses = []
-        style_losses = []
-
-        # assuming that cnn is a nn.Sequential, so we make a new nn.Sequential
-        # to put in modules that are supposed to be activated sequentially
-        model = nn.Sequential(normalization)
-
-        i = 0  # increment every time we see a conv
-        for layer in cnn.children():
-            if isinstance(layer, nn.Conv2d):
-                i += 1
-                name = 'conv_{}'.format(i)
-            elif isinstance(layer, nn.ReLU):
-                name = 'relu_{}'.format(i)
-                # The in-place version doesn't play very nicely with the ContentLoss
-                # and StyleLoss we insert below. So we replace with out-of-place
-                # ones here.
-                #Переопределим relu уровень
-                layer = nn.ReLU(inplace=False)
-            elif isinstance(layer, nn.MaxPool2d):
-                name = 'pool_{}'.format(i)
-            elif isinstance(layer, nn.BatchNorm2d):
-                name = 'bn_{}'.format(i)
-            else:
-                raise ValueError('Unrecognized layer: {}'.format(layer.__class__.__name__))
-
-            model.add_module(name, layer)
-
-            if name in self._content_layers:
-                # add content loss:
-                target = model(content_img).detach()
-                content_loss = ContentLoss(target)
-                model.add_module("content_loss_{}".format(i), content_loss)
-                content_losses.append(content_loss)
-
-            if name in self._style_layers:
-                # add style loss:
-                target_feature = model(style_img).detach()
-                style_loss = StyleLoss(target_feature)
-                model.add_module("style_loss_{}".format(i), style_loss)
-                style_losses.append(style_loss)
-
-        # now we trim off the layers after the last content and style losses
-        #выбрасываем все уровни после последнего style loss или content loss
-        for i in range(len(model) - 1, -1, -1):
-            if isinstance(model[i], ContentLoss) or isinstance(model[i], StyleLoss):
-                break
-
-        model = model[:(i + 1)]
-        return model, style_losses, content_losses
-
-
     async def __run_style_transfer(self, content_img, style_img, input_img, num_steps,
                         style_weight, content_weight):
         """Run the style transfer."""
         print('Building the style transfer model..')
-        model, style_losses, content_losses = await self.__get_style_model_and_losses(style_img, content_img)
+        
+        model = nn.Sequential()
+        style_losses = []
+        content_losses = []
+
+        if self._cnn != None:
+            # we download cnn into ram (acceptable only if we have many ram)
+            print("Loading cnn from internet")
+            model, style_losses, content_losses = await models.get_style_model_and_losses_from_full_cnn(self._cnn, style_img, content_img)
+        else:
+            # we load cuted cnn from file
+            print("Loading cuted cnn from disk")
+            model = torch.load(self._cut_cnn_path)
+            model, style_losses, content_losses = await models.get_model_and_losses_from_cut_cnn(model, style_img, content_img)
+
         optimizer = optim.LBFGS([input_img.requires_grad_()], max_iter=1)
 
         print('Optimizing..')
@@ -235,7 +191,7 @@ class StyleTransformer(object):
                 loss.backward()
 
                 run[0] += 1
-                if run[0] % 50 == 0:
+                if run[0] % 10 == 0:
                     print("run {}:".format(run))
                     print('Style Loss : {:4f} Content Loss: {:4f}'.format(
                         style_score.item(), content_score.item()))
@@ -248,6 +204,7 @@ class StyleTransformer(object):
 
         # a last correction...
         input_img.data.clamp_(0, 1)
+        print("Style transferring done")        
 
         return input_img
 
@@ -270,4 +227,7 @@ class StyleTransformer(object):
     @property
     def style_layers(self):
         return self._style_layers
+
+
+
 
