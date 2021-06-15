@@ -25,7 +25,7 @@ import style_transformer as st_tr
 import properties as prop
 import messages
 from utils import States 
-import tokens
+import config
 import users
 
 
@@ -202,16 +202,15 @@ def register_handlers(dp: Dispatcher):
 
 
 # webhook settings
-WEBHOOK_HOST = "https://afternoon-hollows-87094.herokuapp.com"
-WEBHOOK_PATH = f"/webhook/{tokens.TOKEN}"
-WEBHOOK_URL = urljoin(WEBHOOK_HOST, WEBHOOK_PATH)
+WEBHOOK_PATH = f"/webhook/{config.TOKEN}"
+WEBHOOK_URL = urljoin(config.WEBHOOK_HOST, WEBHOOK_PATH)
  
 # webserver settings
 WEBAPP_HOST = "0.0.0.0"
-WEBAPP_PORT = int(os.environ.get('PORT', 5000))
+WEBAPP_PORT = int(os.environ.get('PORT', config.WEBAPP_PORT))
 
 
-bot = Bot(token=tokens.TOKEN)
+bot = Bot(token=config.TOKEN)
 dp = Dispatcher(bot, storage=MemoryStorage())
 dp.middleware.setup(LoggingMiddleware())
 
