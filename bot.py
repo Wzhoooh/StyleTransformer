@@ -5,6 +5,7 @@ import torchvision.transforms as transforms
 from PIL import Image
 import os
 from pathlib import Path
+import asyncio
 
 import aiogram
 from aiogram import Bot, types
@@ -57,22 +58,18 @@ def create_markup(names: list):
     return markup
 
 
-async def process_images(content_msg: types.Message, style_msg: types.Message):
-    # getting files names
-    if content_msg.from_user.id != content_msg.from_user.id:
-        raise RuntimeError("got messages from different clients")
-
+async def process_images(msg: types.Message, content_img, style_img):
     # creting dir "images"
     Path("images").mkdir(parents=True, exist_ok=True)
 
-    user_id = content_msg.from_user.id
+    user_id = msg.from_user.id
     content_img_file_name = f"images/{user_id}_content.jpg"
     style_img_file_name = f"images/{user_id}_style.jpg"
     output_img_file_name = f"images/{user_id}_output.jpg"
 
     # downloading files
-    await content_msg.photo[-1].download(content_img_file_name)
-    await style_msg.photo[-1].download(style_img_file_name)
+    await content_img.download(content_img_file_name)
+    await style_img.download(style_img_file_name)
 
     content_img = Image.open(content_img_file_name)
     style_img = Image.open(style_img_file_name)
@@ -93,6 +90,14 @@ async def process_images(content_msg: types.Message, style_msg: types.Message):
     os.remove(style_img_file_name)
 
     return output_img_file_name
+
+
+async def background_process_and_send_result(msg, content_img, style_img):
+    print("background process started")
+    output_img_file_name = await process_images(msg, content_img, style_img)
+    output_img = types.input_file.InputFile(output_img_file_name)
+    await msg.answer_photo(output_img)
+    os.remove(output_img_file_name)
 
 
 #---handlers---#
@@ -135,7 +140,7 @@ async def process_image_command(msg: types.Message, state: FSMContext):
 
 
 async def getting_content_image(msg: types.Message, state: FSMContext):
-    await state.update_data(content_img=msg)
+    await state.update_data(content_msg=msg)
     if msg.photo[-1]["height"] > prop.MAX_IMG_SIDE_SIZE or msg.photo[-1]["height"] > prop.MAX_IMG_SIDE_SIZE:
         await msg.answer(messages.warn("TOO_BIG_IMAGE_WAS_COMPRESSED", await get_language(state)))
 
@@ -149,25 +154,22 @@ async def process_style_command(msg: types.Message, state: FSMContext):
     await msg.answer(messages.MESSAGES["SEND_ME_STYLE_IMAGE"][await get_language(state)], reply_markup=markup)
 
 async def getting_style_image(msg: types.Message, state: FSMContext):
-    await state.update_data(style_img=msg)
+    await state.update_data(style_msg=msg)
     await States.init_state.set()
     await msg.answer(messages.MESSAGES["IMAGE_RECEIVED"][await get_language(state)], reply_markup=MAIN_MENU)
 
 
 async def process_make_magic_command(msg: types.Message, state: FSMContext):
     info = await state.get_data()
-    content_img_id = info.get("content_img")
-    style_img_id = info.get("style_img")
-    if content_img_id == None:
+    content_msg = info.get("content_msg")
+    style_msg = info.get("style_msg")
+    if content_msg == None:
         await msg.answer(messages.error("CONTENT_IMAGE_NOT_RECEIVED", await get_language(state)), reply_markup=MAIN_MENU)
-    elif style_img_id == None:
+    elif style_msg == None:
         await msg.answer(messages.error("STYLE_IMAGE_NOT_RECEIVED", await get_language(state)), reply_markup=MAIN_MENU)
     else:
         await msg.answer(messages.MESSAGES["WAIT_FOR_SEVERAL_MINUTES"][await get_language(state)])
-        output_img_file_name = await process_images(content_img_id, style_img_id)
-        output_img = types.input_file.InputFile(output_img_file_name)
-        await msg.answer_photo(output_img, reply_markup=MAIN_MENU)
-        os.remove(output_img_file_name)
+        asyncio.create_task(background_process_and_send_result(msg, content_msg.photo[-1],  style_msg.photo[-1]))
 
     await States.init_state.set()
 
