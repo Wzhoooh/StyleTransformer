@@ -131,6 +131,10 @@ WARNINGS = {
     "STYLE_IMAGE_NOT_RECEIVED": {
         LANGS[0]: "I didn't receive style image",
         LANGS[1]: "я не получил изображение со стилем"
+    },
+    "STYLE_TRANSFERRING_ALREADY_RUNNING": {
+        LANGS[0]: "style transferring is already running",
+        LANGS[1]: "преобразование стиля уже идет"
     }
 }
 

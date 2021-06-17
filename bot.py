@@ -101,12 +101,13 @@ async def process_images(msg: types.Message, content_img, style_img, affect):
     return output_img_file_name
 
 
-async def background_process_and_send_result(msg, content_img, style_img, affect):
+async def background_process_and_send_result(msg, state: FSMContext, content_img, style_img, affect):
     print("background process started")
     output_img_file_name = await process_images(msg, content_img, style_img, affect)
     output_img = types.input_file.InputFile(output_img_file_name)
     await msg.answer_photo(output_img)
     os.remove(output_img_file_name)
+    await state.update_data(is_running=False)
 
 
 #---handlers---#
@@ -134,7 +135,7 @@ async def process_language_command(msg: types.Message, state: FSMContext):
 async def choosing_language(msg: types.Message, state: FSMContext):
     new_lang = msg.text.upper()
     if not new_lang in messages.LANGS:
-        await msg.answer(messages.warn("UNKNOWN_LANGUAGE", await get_language(state)))
+        await msg.answer(messages.error("UNKNOWN_LANGUAGE", await get_language(state)))
     else:
         await state.update_data(language=new_lang)
         await msg.answer(messages.MESSAGES["LANGUAGE_CHANGED"][await get_language(state)], reply_markup=MAIN_MENU)
@@ -176,18 +177,18 @@ async def process_affect_command(msg: types.Message, state: FSMContext):
 async def getting_affect(msg: types.Message, state: FSMContext):
     affect_str = msg.text
     if not is_represents_int(affect_str):
-        await msg.answer(messages.warn("VALUE_MUST_BE_INT", await get_language(state)))
+        await msg.answer(messages.error("VALUE_MUST_BE_INT", await get_language(state)))
         return
     
     affect_val = int(affect_str)
     if affect_val > prop.AFFECT_MAX:
-        await msg.answer(messages.warn("TOO_BIG_VALUE", await get_language(state)))
+        await msg.answer(messages.error("TOO_BIG_VALUE", await get_language(state)))
         return
     if affect_val == 0:
-        await msg.answer(messages.warn("VALUE_MUST_BE_NON_ZERO", await get_language(state)))
+        await msg.answer(messages.error("VALUE_MUST_BE_NON_ZERO", await get_language(state)))
         return
     if affect_val < 0:
-        await msg.answer(messages.warn("VALUE_MUST_BE_POSITIVE", await get_language(state)))
+        await msg.answer(messages.error("VALUE_MUST_BE_POSITIVE", await get_language(state)))
         return
 
     await state.update_data(affect=affect_val)
@@ -199,18 +200,22 @@ async def process_make_magic_command(msg: types.Message, state: FSMContext):
     info = await state.get_data()
     content_msg = info.get("content_msg")
     style_msg = info.get("style_msg")
-    affect = info.get("affect")
+    affect = info.get("affect")        
 
     if affect == None:
         affect = prop.AFFECT_DEFAULT
 
-    if content_msg == None:
+    is_running = info.get("is_running")
+    if is_running != None and is_running == True:
+        await msg.answer(messages.error("STYLE_TRANSFERRING_ALREADY_RUNNING", await get_language(state)), reply_markup=MAIN_MENU)
+    elif content_msg == None:
         await msg.answer(messages.error("CONTENT_IMAGE_NOT_RECEIVED", await get_language(state)), reply_markup=MAIN_MENU)
     elif style_msg == None:
         await msg.answer(messages.error("STYLE_IMAGE_NOT_RECEIVED", await get_language(state)), reply_markup=MAIN_MENU)
     else:
+        await state.update_data(is_running=True)
         await msg.answer(messages.MESSAGES["WAIT_FOR_SEVERAL_MINUTES"][await get_language(state)])
-        asyncio.create_task(background_process_and_send_result(msg, content_msg.photo[-1],  style_msg.photo[-1], affect))
+        asyncio.create_task(background_process_and_send_result(msg, state, content_msg.photo[-1],  style_msg.photo[-1], affect))
 
     await States.init_state.set()
 
