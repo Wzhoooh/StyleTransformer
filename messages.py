@@ -25,16 +25,20 @@ BUTTONS = {
 COMMANDS = {
     "START": {
         LANGS[0]: "Hello! This bot can do style transfer. To load source image and image with \
-style, use /image and /style commands, respectively. To start style transfer, use /make_magic command.",
+style, use /image and /style commands, respectively. To change affect of style image on result use /affect \
+command. To start style transfer, use /make_magic command.",
         LANGS[1]: "Добрый день! Этот бот умеет делать перенос стиля. Чтобы загрузить исходное \
-изображение и изображение со стилем, используйте команды /image и /style соответственно. Для того, \
+изображение и изображение со стилем, используйте команды /image и /style соответственно. Для того, чтобы \
+изменить влияние изображения со стилем на итоговое изображение, изпользуйте команду /affect. Для того, \
 чтобы запустить перенос стиля, используйте команду /make_magic."
     },
     "HELP": {
         LANGS[0]: "To load source image and image with style, use /image and /style commands, \
-respectively. To start style transfer, use /make_magic command.",
+respectively. To change affect of style image on result use /affect command. To start style transfer, \
+use /make_magic command.",
         LANGS[1]: "Чтобы загрузить исходное изображение и изображение со стилем, используйте \
-команды /image и /style соответственно. Для того, чтобы запустить перенос стиля, используйте \
+команды /image и /style соответственно. Для того, чтобы изменить влияние изображения со стилем на \
+итоговое изображение, изпользуйте команду /affect. Для того, чтобы запустить перенос стиля, используйте \
 команду /make_magic."
     },
     "CANCEL": {

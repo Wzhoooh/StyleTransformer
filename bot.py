@@ -22,13 +22,6 @@ from utils import States
 import users
 
 
-
-MAIN_MENU = ReplyKeyboardMarkup(resize_keyboard=True).row("/image", "/style", "/affect").add(
-    KeyboardButton("/make_magic")).add(
-    KeyboardButton("/language")).add(
-    KeyboardButton("/help"))
-
-
 def save_tensor_as_image(t: torch.Tensor, img_name):
     t = t.squeeze(0)
     t = transforms.ToPILImage(mode='RGB')(t)
@@ -57,12 +50,18 @@ async def get_language(state: FSMContext):
     else:
         return language
 
+
 def create_markup(names: list):
     markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    for i in names:
-        markup.add(KeyboardButton(i))
+    for i in range(len(names)):
+        if isinstance(names[i], list) or isinstance(names[i], tuple):
+            markup.row(*names[i])
+        else:        
+            markup.add(names[i])
     
     return markup
+
+MAIN_MENU = create_markup([["/image", "/style", "/affect"], "/make_magic", "/language", "/help"])
 
 
 async def process_images(msg: types.Message, content_img, style_img, affect):
@@ -127,24 +126,23 @@ async def process_cancel_command(msg: types.Message, state: FSMContext):
 
 
 async def process_language_command(msg: types.Message, state: FSMContext):
-    markup = create_markup(messages.LANGS)
+    markup = create_markup([messages.LANGS, "/cancel"])
     await States.waiting_for_language.set()
     await msg.answer(messages.COMMANDS["LANGUAGE"][await get_language(state)], reply_markup=markup)
 
 
 async def choosing_language(msg: types.Message, state: FSMContext):
     new_lang = msg.text.upper()
-    if new_lang in messages.LANGS:
+    if not new_lang in messages.LANGS:
+        await msg.answer(messages.warn("UNKNOWN_LANGUAGE", await get_language(state)))
+    else:
         await state.update_data(language=new_lang)
         await msg.answer(messages.MESSAGES["LANGUAGE_CHANGED"][await get_language(state)], reply_markup=MAIN_MENU)
-    else:
-         await msg.answer(messages.warn("UNKNOWN_LANGUAGE", await get_language(state)), reply_markup=MAIN_MENU)
+        await States.init_state.set()
    
-    await States.init_state.set()
-    
 
 async def process_image_command(msg: types.Message, state: FSMContext):
-    markup = create_markup(["/cancel", "/help"])
+    markup = create_markup(["/cancel"])
     await States.waiting_for_content_image.set()
     await msg.answer(messages.MESSAGES["SEND_ME_CONTENT_IMAGE"][await get_language(state)], reply_markup=markup)
 
@@ -159,7 +157,7 @@ async def getting_content_image(msg: types.Message, state: FSMContext):
 
 
 async def process_style_command(msg: types.Message, state: FSMContext):
-    markup = create_markup(["/cancel", "/help"])
+    markup = create_markup(["/cancel"])
     await States.waiting_for_style_image.set()
     await msg.answer(messages.MESSAGES["SEND_ME_STYLE_IMAGE"][await get_language(state)], reply_markup=markup)
 
@@ -170,7 +168,7 @@ async def getting_style_image(msg: types.Message, state: FSMContext):
 
 
 async def process_affect_command(msg: types.Message, state: FSMContext):
-    markup = create_markup(["/cancel"])
+    markup = create_markup([list(map(lambda x: str(x), range(1, prop.AFFECT_MAX+1))), "/cancel"])
     await States.waiting_for_affect.set()
     await msg.answer(messages.COMMANDS["AFFECT"][await get_language(state)], reply_markup=markup)
 
@@ -178,22 +176,18 @@ async def process_affect_command(msg: types.Message, state: FSMContext):
 async def getting_affect(msg: types.Message, state: FSMContext):
     affect_str = msg.text
     if not is_represents_int(affect_str):
-        await msg.answer(messages.warn("VALUE_MUST_BE_INT", await get_language(state)), reply_markup=MAIN_MENU)
-        await States.init_state.set()
+        await msg.answer(messages.warn("VALUE_MUST_BE_INT", await get_language(state)))
         return
     
     affect_val = int(affect_str)
     if affect_val > prop.AFFECT_MAX:
-        await msg.answer(messages.warn("TOO_BIG_VALUE", await get_language(state)), reply_markup=MAIN_MENU)
-        await States.init_state.set()
+        await msg.answer(messages.warn("TOO_BIG_VALUE", await get_language(state)))
         return
     if affect_val == 0:
-        await msg.answer(messages.warn("VALUE_MUST_BE_NON_ZERO", await get_language(state)), reply_markup=MAIN_MENU)
-        await States.init_state.set()
+        await msg.answer(messages.warn("VALUE_MUST_BE_NON_ZERO", await get_language(state)))
         return
     if affect_val < 0:
-        await msg.answer(messages.warn("VALUE_MUST_BE_POSITIVE", await get_language(state)), reply_markup=MAIN_MENU)
-        await States.init_state.set()
+        await msg.answer(messages.warn("VALUE_MUST_BE_POSITIVE", await get_language(state)))
         return
 
     await state.update_data(affect=affect_val)
