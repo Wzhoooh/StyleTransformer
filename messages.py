@@ -1,3 +1,5 @@
+import properties as prop
+
 LANGS = [ "ENG", "RUS" ]
 
 
@@ -42,7 +44,11 @@ respectively. To start style transfer, use /make_magic command.",
     "LANGUAGE": {
         LANGS[0]: "Choose language",
         LANGS[1]: "Выберите язык"
-    }
+    },
+    "AFFECT": {
+        LANGS[0]: f"Send me value of affect of style image (value: 1 - {prop.AFFECT_MAX})",
+        LANGS[1]: f"Пошлите мне значение влияния изображения со стилем (значение: 1 - {prop.AFFECT_MAX})"
+    },
 }
 
 MESSAGES = {
@@ -58,9 +64,13 @@ MESSAGES = {
         LANGS[0]: "Image received",
         LANGS[1]: "Изображение получено"
     },
+    "AFFECT_CHANGED": {
+        LANGS[0]: "Style image affect changed",
+        LANGS[1]: "Влияние изображения со стилем изменено"
+    },
     "WAIT_FOR_SEVERAL_MINUTES": {
-        LANGS[0]: "Wait for several minutes",
-        LANGS[1]: "Подождите несколько минут"
+        LANGS[0]: "Please wait for several minutes",
+        LANGS[1]: "Пожалуйста, подождите несколько минут"
     },
     "WARNING": {
         LANGS[0]: "Warning!: ",
@@ -82,13 +92,25 @@ WARNINGS = {
         LANGS[0]: "it is too big size of image, image was compressed",
         LANGS[1]: "слишком большой размер изображения, изображение было сжато"
     },
-    "NEGATIVE_VALUE_MUST_BE_POSITIVE": {
+    "VALUE_MUST_BE_INT": {
+        LANGS[0]: "this value must be integer",
+        LANGS[1]: "это значение должно быть целым"
+    },
+    "VALUE_MUST_BE_POSITIVE": {
         LANGS[0]: "this value must be positive",
         LANGS[1]: "это значение должно быть положительным"
     },
     "TOO_BIG_VALUE": {
         LANGS[0]: "it is too big value",
         LANGS[1]: "это слишком большое значение"
+    },
+    "TOO_SMALL_VALUE": {
+        LANGS[0]: "it is too small value",
+        LANGS[1]: "это слишком маленькое значение"
+    },
+    "VALUE_MUST_BE_NON_ZERO": {
+        LANGS[0]: "this value must be non-zero",
+        LANGS[1]: "это значение должно быть ненулевым"
     },
     "UNKNOWN_COMMAND": {
         LANGS[0]: "I don't know this command. Use /help",

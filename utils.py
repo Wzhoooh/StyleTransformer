@@ -12,5 +12,6 @@ class States(StatesGroup):
     # state after calling of /process
     waiting_for_content_image = State()
     waiting_for_style_image = State()
-
+    # state after calling of /affect
+    waiting_for_affect = State()
 

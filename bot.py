@@ -23,7 +23,7 @@ import users
 
 
 
-MAIN_MENU = ReplyKeyboardMarkup(resize_keyboard=True).row("/image", "/style").add(
+MAIN_MENU = ReplyKeyboardMarkup(resize_keyboard=True).row("/image", "/style", "/affect").add(
     KeyboardButton("/make_magic")).add(
     KeyboardButton("/language")).add(
     KeyboardButton("/help"))
@@ -34,6 +34,13 @@ def save_tensor_as_image(t: torch.Tensor, img_name):
     t = transforms.ToPILImage(mode='RGB')(t)
     t.save(img_name)
 
+
+def is_represents_int(s: str):
+    try:
+        int(s)
+        return True
+    except ValueError:
+        return False
 
 async def get_field(state: FSMContext, field_name: str):
     all_fields = await state.get_data()
@@ -58,7 +65,7 @@ def create_markup(names: list):
     return markup
 
 
-async def process_images(msg: types.Message, content_img, style_img):
+async def process_images(msg: types.Message, content_img, style_img, affect):
     # creting dir "images"
     Path("images").mkdir(parents=True, exist_ok=True)
 
@@ -80,8 +87,11 @@ async def process_images(msg: types.Message, content_img, style_img):
     save_tensor_as_image(content_img, "images/content_intermed.jpg")
     save_tensor_as_image(style_img, "images/style_intermed.jpg")
     '''
+    cont_w = 1
+    st_w = 10 ** affect
     style_transformer = st_tr.StyleTransformer()
-    tensor_image = await style_transformer(content_img, style_img, num_steps=prop.NUM_STEPS)
+    tensor_image = await style_transformer(content_img, style_img, num_steps=prop.NUM_STEPS, 
+        style_weight=st_w, content_weight=cont_w)
     tensor_image = tensor_image.squeeze(0)
     image = transforms.ToPILImage(mode='RGB')(tensor_image)
     image.save(output_img_file_name)
@@ -92,9 +102,9 @@ async def process_images(msg: types.Message, content_img, style_img):
     return output_img_file_name
 
 
-async def background_process_and_send_result(msg, content_img, style_img):
+async def background_process_and_send_result(msg, content_img, style_img, affect):
     print("background process started")
-    output_img_file_name = await process_images(msg, content_img, style_img)
+    output_img_file_name = await process_images(msg, content_img, style_img, affect)
     output_img = types.input_file.InputFile(output_img_file_name)
     await msg.answer_photo(output_img)
     os.remove(output_img_file_name)
@@ -159,17 +169,54 @@ async def getting_style_image(msg: types.Message, state: FSMContext):
     await msg.answer(messages.MESSAGES["IMAGE_RECEIVED"][await get_language(state)], reply_markup=MAIN_MENU)
 
 
+async def process_affect_command(msg: types.Message, state: FSMContext):
+    markup = create_markup(["/cancel"])
+    await States.waiting_for_affect.set()
+    await msg.answer(messages.COMMANDS["AFFECT"][await get_language(state)], reply_markup=markup)
+
+
+async def getting_affect(msg: types.Message, state: FSMContext):
+    affect_str = msg.text
+    if not is_represents_int(affect_str):
+        await msg.answer(messages.warn("VALUE_MUST_BE_INT", await get_language(state)), reply_markup=MAIN_MENU)
+        await States.init_state.set()
+        return
+    
+    affect_val = int(affect_str)
+    if affect_val > prop.AFFECT_MAX:
+        await msg.answer(messages.warn("TOO_BIG_VALUE", await get_language(state)), reply_markup=MAIN_MENU)
+        await States.init_state.set()
+        return
+    if affect_val == 0:
+        await msg.answer(messages.warn("VALUE_MUST_BE_NON_ZERO", await get_language(state)), reply_markup=MAIN_MENU)
+        await States.init_state.set()
+        return
+    if affect_val < 0:
+        await msg.answer(messages.warn("VALUE_MUST_BE_POSITIVE", await get_language(state)), reply_markup=MAIN_MENU)
+        await States.init_state.set()
+        return
+
+    await state.update_data(affect=affect_val)
+    await msg.answer(messages.MESSAGES["AFFECT_CHANGED"][await get_language(state)], reply_markup=MAIN_MENU)
+    await States.init_state.set()
+
+
 async def process_make_magic_command(msg: types.Message, state: FSMContext):
     info = await state.get_data()
     content_msg = info.get("content_msg")
     style_msg = info.get("style_msg")
+    affect = info.get("affect")
+
+    if affect == None:
+        affect = prop.AFFECT_DEFAULT
+
     if content_msg == None:
         await msg.answer(messages.error("CONTENT_IMAGE_NOT_RECEIVED", await get_language(state)), reply_markup=MAIN_MENU)
     elif style_msg == None:
         await msg.answer(messages.error("STYLE_IMAGE_NOT_RECEIVED", await get_language(state)), reply_markup=MAIN_MENU)
     else:
         await msg.answer(messages.MESSAGES["WAIT_FOR_SEVERAL_MINUTES"][await get_language(state)])
-        asyncio.create_task(background_process_and_send_result(msg, content_msg.photo[-1],  style_msg.photo[-1]))
+        asyncio.create_task(background_process_and_send_result(msg, content_msg.photo[-1],  style_msg.photo[-1], affect))
 
     await States.init_state.set()
 
@@ -191,7 +238,10 @@ def register_handlers(dp: Dispatcher):
 
     dp.register_message_handler(process_style_command, commands=["style"], state="*")
     dp.register_message_handler(getting_style_image, content_types=types.message.ContentType.PHOTO, state=States.waiting_for_style_image)
-    
+   
+    dp.register_message_handler(process_affect_command, commands=["affect"], state="*")
+    dp.register_message_handler(getting_affect, content_types=types.message.ContentType.TEXT, state=States.waiting_for_affect)
+ 
     dp.register_message_handler(process_make_magic_command, commands=["make_magic"], state="*")
 
     dp.register_message_handler(unknown_message, content_types=types.message.ContentType.ANY, state="*")
