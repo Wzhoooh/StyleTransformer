@@ -1,5 +1,6 @@
 import os
 from urllib.parse import urljoin
+import asyncio
 
 from aiogram import Bot
 from aiogram.utils import executor
@@ -20,11 +21,9 @@ WEBHOOK_URL = urljoin(config.WEBHOOK_HOST, WEBHOOK_PATH)
 WEBAPP_HOST = "0.0.0.0"
 WEBAPP_PORT = int(os.environ.get('PORT', config.WEBAPP_PORT))
 
-
 bot = Bot(token=config.TOKEN)
 dp = Dispatcher(bot, storage=MemoryStorage())
 dp.middleware.setup(LoggingMiddleware())
-
 bot_handlers.register_handlers(dp)
 
 
@@ -37,15 +36,15 @@ async def on_shutdown(dp):
     print('Bye!')
 
 
-if __name__ == '__main__':
-    print("main started")
+def main():
     if prop.CONNECTION_TYPE == "POLLING":
-        print("connection is polling")
+        print("Connection is polling")
         executor.start_polling(dp)
     elif prop.CONNECTION_TYPE == "WEBHOOKS":
-        print("host:", WEBAPP_HOST)
-        print("port:", WEBAPP_PORT)
-        print("url:", WEBHOOK_URL)
+        print("Connection is polling")
+        print("Host:", WEBAPP_HOST)
+        print("Port:", WEBAPP_PORT)
+        print("Url:", WEBHOOK_URL)
         executor.start_webhook(
             dispatcher=dp,
             webhook_path=WEBHOOK_PATH,
@@ -56,5 +55,10 @@ if __name__ == '__main__':
             port=WEBAPP_PORT,
         )
     else:
-        print("uncorrect CONNECTION_TYPE")
+        print("Uncorrect CONNECTION_TYPE")
+
+
+if __name__ == '__main__':
+    print("main started")
+    main()
 
