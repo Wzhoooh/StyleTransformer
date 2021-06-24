@@ -7,12 +7,47 @@ import torchvision.transforms as transforms
 import torchvision.models as models
 
 import copy
-import numpy as np
 import asyncio
 
-import properties as prop
-from PIL import Image
-import style_transformer as st_tr
+import models.simple_style_transfer.cut_vgg19_code as cut_vgg19_code
+
+class ImageTransformer(object):
+    def __init__(self, max_img_side_size):
+        self.__max_img_side_size = max_img_side_size
+
+    def __call__(self, content_image, style_image, height=None, width=None):
+        warnings = []
+
+        if height == None: # taking size of content_image
+            _, height = content_image.size
+
+        if width == None:
+            width, _ = content_image.size
+
+        # compression of image if its side size > max_img_side_size
+        max_size = max([height, width])
+        compression_coef = 0.0
+        if max_size > self.__max_img_side_size:
+            compression_coef = self.__max_img_side_size / max_size
+            height = int(height * compression_coef)
+            width = int(width * compression_coef)
+
+        if height > self.__max_img_side_size or width > self.__max_img_side_size or height <= 0 or width <= 0:
+            raise ValueError("uncorrect size of image")
+
+        loader = transforms.Compose([
+            transforms.Resize(size=[height, width]), # нормируем размер изображения
+            transforms.CenterCrop(size=[height, width]),
+            transforms.ToTensor()]) # превращаем в удобный формат
+
+        return (loader(content_image).unsqueeze(0).to(torch.float),
+            loader(style_image).unsqueeze(0).to(torch.float))
+
+    @property
+    def max_side_size(self):
+        return self.__max_side_size
+        
+        
 
 class ContentLoss(nn.Module):
     def __init__(self, target,):
@@ -73,59 +108,125 @@ class Normalization(nn.Module):
 
 
 
-def normalize_and_cut_cnn(cnn, device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
-                cnn_normalization_mean=torch.tensor([0.485, 0.456, 0.406]),
-                cnn_normalization_std=torch.tensor([0.229, 0.224, 0.225]),
-                content_layers=['conv_4'],
-                style_layers=['conv_1', 'conv_2', 'conv_3', 'conv_4', 'conv_5']):
-    cnn = cnn.features.to(device).eval()
-
-    # normalization module
-    normalization = Normalization(cnn_normalization_mean, cnn_normalization_std).to(device)
-
-    # assuming that cnn is a nn.Sequential, so we make a new nn.Sequential
-    # to put in modules that are supposed to be activated sequentially
-    model = nn.Sequential(normalization)
-
-    i = 0 # increment every time we see a conv
-    for layer in cnn.children():
-        if isinstance(layer, nn.Conv2d):
-            i += 1
-            name = 'conv_{}'.format(i)
-        elif isinstance(layer, nn.ReLU):
-            name = 'relu_{}'.format(i)
-            # The in-place version doesn't play very nicely with the ContentLoss
-            # and StyleLoss we insert below. So we replace with out-of-place
-            # ones here.
-            #Переопределим relu уровень
-            layer = nn.ReLU(inplace=False)
-        elif isinstance(layer, nn.MaxPool2d):
-            name = 'pool_{}'.format(i)
-        elif isinstance(layer, nn.BatchNorm2d):
-            name = 'bn_{}'.format(i)
-        else:
-            raise ValueError('Unrecognized layer: {}'.format(layer.__class__.__name__))
-
-        model.add_module(name, layer)
+class StyleTransformer(object):
+    def __init__(self, device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+                 cut_cnn_path="models/simple_style_transfer/cut_vgg19.pth",
+                 cnn=None, #models.vgg19(pretrained=True),
+                 cnn_normalization_mean=torch.tensor([0.485, 0.456, 0.406]),
+                 cnn_normalization_std=torch.tensor([0.229, 0.224, 0.225]),
+                 content_layers=['conv_4'],
+                 style_layers=['conv_1', 'conv_2', 'conv_3', 'conv_4', 'conv_5']):
+        self._device = device
+        self._cut_cnn_path = cut_cnn_path
+        self._cnn = cnn
+        self._cnn_normalization_mean = cnn_normalization_mean.to(device)
+        self._cnn_normalization_std = cnn_normalization_std.to(device)
+        self._content_layers = content_layers
+        self._style_layers = style_layers
 
 
-    # now we remove the unnecessary layers
-    all_loss_layers = np.unique(np.concatenate([content_layers, style_layers]))
-    is_passed = np.zeros([len(all_loss_layers)])
-    num_of_layers = 0
+    async def __call__(self, content_image: torch.Tensor, style_image: torch.Tensor, 
+                  num_steps=100, style_weight=100000, content_weight=1):
+        if self.__check_images_sizes(content_image, style_image) == False:
+            raise ValueError("uncorrect size of image")
 
-    for name_of_layer, _ in model.named_modules():
-        # checking if we need one more layer in model
-        if not (is_passed == 1).all():
-            # we need one more layer
-            num_of_layers += 1
-            if name_of_layer in all_loss_layers:
-                is_passed[np.where(all_loss_layers == name_of_layer)] = 1 
-        else:
-            break
+        content_image = content_image.to(self._device)
+        style_image = style_image.to(self._device)
+        input_image = content_image.clone().to(self._device)
+        result = await self.__run_style_transfer(content_image, style_image, input_image, num_steps, 
+                           style_weight, content_weight)
+        return result
         
-    model = model[:num_of_layers-1]
-    return model
+
+    def __check_images_sizes(self, content_image: torch.Tensor, style_image: torch.Tensor):
+        return content_image.shape == style_image.shape
+        
+
+    async def __run_style_transfer(self, content_img, style_img, input_img, num_steps,
+                        style_weight, content_weight):
+        """Run the style transfer."""
+        print('Building the style transfer model..')
+        
+        model = nn.Sequential()
+        style_losses = []
+        content_losses = []
+
+        if self._cnn != None:
+            # we download cnn into ram (acceptable only if we have many ram)
+            print("Loading cnn from internet")
+            model, style_losses, content_losses = await get_style_model_and_losses_from_full_cnn(self._cnn, style_img, content_img)
+        else:
+            # we load cuted cnn from file
+            print("Loading cuted cnn from disk")
+            model = cut_vgg19_code.CutVgg19() #copy.deepcopy(cut_vgg19_code.cut_vgg19_model)
+            model.load_state_dict(torch.load(self._cut_cnn_path))
+            model, style_losses, content_losses = await get_model_and_losses_from_cut_cnn(model, style_img, content_img)
+        optimizer = optim.LBFGS([input_img.requires_grad_()], max_iter=1)
+
+        print('Optimizing..')
+        run = [0]
+        while run[0] <= num_steps:
+            await asyncio.sleep(0) # asynchronicity :-)
+
+            def closure():
+                # correct the values 
+                # это для того, чтобы значения тензора картинки не выходили за пределы [0;1]
+                input_img.data.clamp_(0, 1)
+                optimizer.zero_grad()
+                model(input_img)
+                style_score = 0
+                content_score = 0
+
+                for sl in style_losses:
+                    style_score += sl.loss
+                for cl in content_losses:
+                    content_score += cl.loss
+                
+                #взвешивание ощибки
+                style_score *= style_weight
+                content_score *= content_weight
+
+                loss = style_score + content_score
+                loss.backward()
+
+                run[0] += 1
+                if run[0] % 10 == 0:
+                    print("run {}:".format(run))
+                    print('Style Loss : {:4f} Content Loss: {:4f}'.format(
+                        style_score.item(), content_score.item()))
+                    print()
+
+                return style_score + content_score
+
+            await asyncio.sleep(0) # asynchronicity :-)
+            optimizer.step(closure)
+
+        # a last correction...
+        input_img.data.clamp_(0, 1)
+        print("Style transferring done")        
+
+        return input_img
+
+
+    @property
+    def device(self):
+        return self._device
+    @property
+    def cnn(self):
+        return self._cnn
+    @property
+    def cnn_normalization_mean(self):
+        return self._cnn_normalization_mean
+    @property
+    def cnn_normalization_std(self):
+        return self._cnn_normalization_std
+    @property
+    def content_layers(self):
+        return self._content_layers
+    @property
+    def style_layers(self):
+        return self._style_layers
+
 
 
 async def get_model_and_losses_from_cut_cnn(modified_cnn, style_img, content_img,
@@ -162,13 +263,12 @@ async def get_model_and_losses_from_cut_cnn(modified_cnn, style_img, content_img
     return model, style_losses, content_losses
 
 
-async def get_style_model_and_losses_from_full_cnn(input_cnn, style_img, content_img,
+async def get_style_model_and_losses_from_full_cnn(cnn, style_img, content_img,
                                     device=torch.device("cuda" if torch.cuda.is_available() else "cpu"),
                                     cnn_normalization_mean=torch.tensor([0.485, 0.456, 0.406]),
                                     cnn_normalization_std=torch.tensor([0.229, 0.224, 0.225]),
                                     content_layers=['conv_4'],
                                     style_layers=['conv_1', 'conv_2', 'conv_3', 'conv_4', 'conv_5']):
-    cnn = copy.deepcopy(input_cnn)
     cnn = cnn.features.to(device).eval()
 
     # normalization module
@@ -226,11 +326,4 @@ async def get_style_model_and_losses_from_full_cnn(input_cnn, style_img, content
 
     model = model[:(i + 1)]
     return model, style_losses, content_losses
-
-
-
-'''
-model = normalize_and_cut_cnn(models.vgg19(pretrained=True))
-torch.save(model, "cut_vgg19.pth")
-'''
 

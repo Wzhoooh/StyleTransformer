@@ -15,7 +15,7 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.types import ReplyKeyboardRemove, \
     ReplyKeyboardMarkup, KeyboardButton
 
-import style_transformer as st_tr
+import models.simple_style_transfer.style_transformer as st_tr
 import properties as prop
 import messages
 from utils import States 
