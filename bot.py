@@ -15,7 +15,8 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.types import ReplyKeyboardRemove, \
     ReplyKeyboardMarkup, KeyboardButton
 
-import models.simple_style_transfer.style_transformer as st_tr
+import models.simple_style_transfer.style_transformer as simple_st_tr
+import models.gan_style_transfer.style_transformer as gan_st_tr
 import properties as prop
 import messages
 from utils import States 
@@ -64,8 +65,47 @@ def create_markup(names: list):
 MAIN_MENU = create_markup([["/image", "/style", "/affect"], "/make_magic", "/language", "/help"])
 
 
-async def process_images(msg: types.Message, content_img, style_img, affect):
-    # creting dir "images"
+GANS = {
+    1: "candy",
+    2: "mosaic",
+    3: "starry-night",
+    4: "udnie"
+}
+
+async def gan_style_transfer(msg: types.Message, content_img, style_img_number):
+    '''
+    if content_img["height"] > prop.MAX_IMG_SIDE_SIZE_FOR_GAN_ST_TR or content_img["height"] > prop.MAX_IMG_SIDE_SIZE_FOR_GAN_ST_TR:
+        await msg.answer(messages.warn("TOO_BIG_IMAGE_WAS_COMPRESSED", await get_language(state)))
+    '''
+
+    # creating dir "images"
+    Path("images").mkdir(parents=True, exist_ok=True)
+
+    user_id = msg.from_user.id
+    content_img_file_name = f"images/{user_id}_content.jpg"
+    output_img_file_name = f"images/{user_id}_output.jpg"
+
+    # downloading file
+    await content_img.download(content_img_file_name)
+
+    model_name = GANS.get(style_img_number)
+    if model_name == None:
+        raise RuntimeError(f"unknown gan model number({style_img_numger})")
+
+    img = gan_st_tr.transfer(content_img_file_name, model_name, prop.MAX_IMG_SIDE_SIZE_FOR_GAN_ST_TR)
+    gan_st_tr.tensor_save_bgrimage(img, output_img_file_name)
+
+    os.remove(content_img_file_name)
+    return output_img_file_name
+
+
+async def simple_style_transfer(msg: types.Message, content_img, style_img, affect):
+    '''
+    if content_img["height"] > prop.MAX_IMG_SIDE_SIZE_FOR_SIMPLE_ST_TR or content_img["height"] > prop.MAX_IMG_SIDE_SIZE_FOR_SIMPLE_ST_TR:
+        await msg.answer(messages.warn("TOO_BIG_IMAGE_WAS_COMPRESSED", await get_language(state)))
+    '''
+
+    # creating dir "images"
     Path("images").mkdir(parents=True, exist_ok=True)
 
     user_id = msg.from_user.id
@@ -80,7 +120,7 @@ async def process_images(msg: types.Message, content_img, style_img, affect):
     content_img = Image.open(content_img_file_name)
     style_img = Image.open(style_img_file_name)
 
-    image_transformer = st_tr.ImageTransformer(max_img_side_size=prop.MAX_IMG_SIDE_SIZE)
+    image_transformer = simple_st_tr.ImageTransformer(max_img_side_size=prop.MAX_IMG_SIDE_SIZE_FOR_SIMPLE_ST_TR)
     content_img, style_img = image_transformer(content_img, style_img)
     '''       
     save_tensor_as_image(content_img, "images/content_intermed.jpg")
@@ -88,7 +128,7 @@ async def process_images(msg: types.Message, content_img, style_img, affect):
     '''
     cont_w = 1
     st_w = 10 ** affect
-    style_transformer = st_tr.StyleTransformer()
+    style_transformer = simple_st_tr.StyleTransformer()
     tensor_image = await style_transformer(content_img, style_img, num_steps=prop.NUM_STEPS, 
         style_weight=st_w, content_weight=cont_w)
     tensor_image = tensor_image.squeeze(0)
@@ -101,9 +141,18 @@ async def process_images(msg: types.Message, content_img, style_img, affect):
     return output_img_file_name
 
 
-async def background_process_and_send_result(msg, state: FSMContext, content_img, style_img, affect):
-    print("background process started")
-    output_img_file_name = await process_images(msg, content_img, style_img, affect)
+async def make_background_gan_style_transfer_and_send_result(msg, state: FSMContext, content_img, style_img_number):
+    print("background gan style transfer started")
+    output_img_file_name = await gan_style_transfer(msg, content_img, style_img_number)
+    output_img = types.input_file.InputFile(output_img_file_name)
+    await msg.answer_photo(output_img)
+    os.remove(output_img_file_name)
+    await state.update_data(is_running=False)
+
+
+async def make_background_simple_style_transfer_and_send_result(msg, state: FSMContext, content_img, style_img, affect):
+    print("background simple style transfer started")
+    output_img_file_name = await simple_style_transfer(msg, content_img, style_img, affect)
     output_img = types.input_file.InputFile(output_img_file_name)
     await msg.answer_photo(output_img)
     os.remove(output_img_file_name)
@@ -150,19 +199,43 @@ async def process_image_command(msg: types.Message, state: FSMContext):
 
 async def getting_content_image(msg: types.Message, state: FSMContext):
     await state.update_data(content_msg=msg)
-    if msg.photo[-1]["height"] > prop.MAX_IMG_SIDE_SIZE or msg.photo[-1]["height"] > prop.MAX_IMG_SIDE_SIZE:
-        await msg.answer(messages.warn("TOO_BIG_IMAGE_WAS_COMPRESSED", await get_language(state)))
-
     await States.init_state.set()
     await msg.answer(messages.MESSAGES["IMAGE_RECEIVED"][await get_language(state)], reply_markup=MAIN_MENU)
 
 
 async def process_style_command(msg: types.Message, state: FSMContext):
-    markup = create_markup(["/cancel"])
+    markup = create_markup(["/get_all_gan_images", list(map(lambda x: str(x), range(1, len(GANS)+1))), "/cancel"])
     await States.waiting_for_style_image.set()
     await msg.answer(messages.MESSAGES["SEND_ME_STYLE_IMAGE"][await get_language(state)], reply_markup=markup)
 
 async def getting_style_image(msg: types.Message, state: FSMContext):
+    await state.update_data(style_msg=msg)
+    await States.init_state.set()
+    await msg.answer(messages.MESSAGES["IMAGE_RECEIVED"][await get_language(state)], reply_markup=MAIN_MENU)
+
+async def get_all_gan_images(msg: types.Message):
+    for i in range(1, len(GANS)+1):
+        await msg.answer(i)
+        img = types.input_file.InputFile(f"models/gan_style_transfer/images/{GANS[i]}.jpg")
+        await msg.answer_photo(img)
+
+async def getting_number_of_gan_image(msg: types.Message, state: FSMContext):
+    num_text = msg.text
+    if not is_represents_int(num_text):
+        await msg.answer(messages.error("VALUE_MUST_BE_INT", await get_language(state)))
+        return
+
+    num = int(num_text)
+    if num > len(GANS) + 1:
+        await msg.answer(messages.error("TOO_BIG_VALUE", await get_language(state)))
+        return
+    if num == 0:
+        await msg.answer(messages.error("VALUE_MUST_BE_NON_ZERO", await get_language(state)))
+        return
+    if num < 0:
+        await msg.answer(messages.error("VALUE_MUST_BE_POSITIVE", await get_language(state)))
+        return
+
     await state.update_data(style_msg=msg)
     await States.init_state.set()
     await msg.answer(messages.MESSAGES["IMAGE_RECEIVED"][await get_language(state)], reply_markup=MAIN_MENU)
@@ -200,7 +273,7 @@ async def process_make_magic_command(msg: types.Message, state: FSMContext):
     info = await state.get_data()
     content_msg = info.get("content_msg")
     style_msg = info.get("style_msg")
-    affect = info.get("affect")        
+    affect = info.get("affect") 
 
     if affect == None:
         affect = prop.AFFECT_DEFAULT
@@ -215,7 +288,13 @@ async def process_make_magic_command(msg: types.Message, state: FSMContext):
     else:
         await state.update_data(is_running=True)
         await msg.answer(messages.MESSAGES["WAIT_FOR_SEVERAL_MINUTES"][await get_language(state)])
-        asyncio.create_task(background_process_and_send_result(msg, state, content_msg.photo[-1],  style_msg.photo[-1], affect))
+
+        if style_msg.text != None:
+            # making gan style transfer
+            asyncio.create_task(make_background_gan_style_transfer_and_send_result(msg, state, content_msg.photo[-1], int(style_msg.text)))
+        else:
+            # making simple style transfer
+            asyncio.create_task(make_background_simple_style_transfer_and_send_result(msg, state, content_msg.photo[-1], style_msg.photo[-1], affect))
 
     await States.init_state.set()
 
@@ -236,8 +315,10 @@ def register_handlers(dp: Dispatcher):
     dp.register_message_handler(getting_content_image, content_types=types.message.ContentType.PHOTO, state=States.waiting_for_content_image)
 
     dp.register_message_handler(process_style_command, commands=["style"], state="*")
+    dp.register_message_handler(get_all_gan_images, commands=["get_all_gan_images"], state="*")
+    dp.register_message_handler(getting_number_of_gan_image, content_types=types.message.ContentType.TEXT, state=States.waiting_for_style_image)
     dp.register_message_handler(getting_style_image, content_types=types.message.ContentType.PHOTO, state=States.waiting_for_style_image)
-   
+ 
     dp.register_message_handler(process_affect_command, commands=["affect"], state="*")
     dp.register_message_handler(getting_affect, content_types=types.message.ContentType.TEXT, state=States.waiting_for_affect)
  
