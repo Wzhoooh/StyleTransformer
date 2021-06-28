@@ -65,6 +65,11 @@ def create_markup(names: list):
 MAIN_MENU = create_markup([["/image", "/style", "/affect"], "/make_magic", "/language", "/help"])
 
 
+async def answer_several_messages(msg: types.Message, answer_msgs: list, markup=None):
+    for i in answer_msgs:
+        await msg.answer(i, reply_markup=markup)
+
+
 GANS = {
     1: "candy",
     2: "mosaic",
@@ -161,14 +166,23 @@ async def make_background_simple_style_transfer_and_send_result(msg, state: FSMC
 
 #---handlers---#
 
-async def process_start_command(msg: types.Message):
+async def process_start_command(msg: types.Message, state: FSMContext):
     users.add_user(msg.from_user)
     await States.init_state.set()
-    await msg.answer(messages.COMMANDS["START"][prop.DEFAULT_LANGUAGE], reply_markup=MAIN_MENU)
+    await msg.answer(messages.COMMANDS["START"][await get_language(state)], reply_markup=MAIN_MENU)
+
 
 async def process_help_command(msg: types.Message, state: FSMContext):
-    await msg.answer(messages.COMMANDS["HELP"][await get_language(state)])
+    await answer_several_messages(msg, messages.COMMANDS["HELP"][await get_language(state)])
 
+async def process_image_help_command(msg: types.Message, state: FSMContext):
+    await msg.answer(messages.COMMANDS["IMAGE_HELP"][await get_language(state)])
+
+async def process_style_help_command(msg: types.Message, state: FSMContext):
+    await answer_several_messages(msg, messages.COMMANDS["STYLE_HELP"][await get_language(state)])
+
+async def process_affect_help_command(msg: types.Message, state: FSMContext):
+    await msg.answer(messages.COMMANDS["AFFECT_HELP"][await get_language(state)])
 
 async def process_cancel_command(msg: types.Message, state: FSMContext):
     await States.init_state.set()
@@ -192,7 +206,7 @@ async def choosing_language(msg: types.Message, state: FSMContext):
    
 
 async def process_image_command(msg: types.Message, state: FSMContext):
-    markup = create_markup(["/cancel"])
+    markup = create_markup([["/cancel", "/help"]])
     await States.waiting_for_content_image.set()
     await msg.answer(messages.MESSAGES["SEND_ME_CONTENT_IMAGE"][await get_language(state)], reply_markup=markup)
 
@@ -200,18 +214,18 @@ async def process_image_command(msg: types.Message, state: FSMContext):
 async def getting_content_image(msg: types.Message, state: FSMContext):
     await state.update_data(content_msg=msg)
     await States.init_state.set()
-    await msg.answer(messages.MESSAGES["IMAGE_RECEIVED"][await get_language(state)], reply_markup=MAIN_MENU)
+    await msg.answer(messages.MESSAGES["CONTENT_IMAGE_RECEIVED"][await get_language(state)], reply_markup=MAIN_MENU)
 
 
 async def process_style_command(msg: types.Message, state: FSMContext):
-    markup = create_markup(["/get_all_gan_images", list(map(lambda x: str(x), range(1, len(GANS)+1))), "/cancel"])
+    markup = create_markup(["/get_all_predefined_styles", list(map(lambda x: str(x), range(1, len(GANS)+1))), ["/cancel", "/help"]])
     await States.waiting_for_style_image.set()
-    await msg.answer(messages.MESSAGES["SEND_ME_STYLE_IMAGE"][await get_language(state)], reply_markup=markup)
+    await msg.answer(messages.MESSAGES["CHOOSE_STYLE_IMAGE"][await get_language(state)], reply_markup=markup)
 
 async def getting_style_image(msg: types.Message, state: FSMContext):
     await state.update_data(style_msg=msg)
     await States.init_state.set()
-    await msg.answer(messages.MESSAGES["IMAGE_RECEIVED"][await get_language(state)], reply_markup=MAIN_MENU)
+    await msg.answer(messages.MESSAGES["STYLE_IMAGE_RECEIVED"][await get_language(state)], reply_markup=MAIN_MENU)
 
 async def get_all_gan_images(msg: types.Message):
     for i in range(1, len(GANS)+1):
@@ -238,11 +252,11 @@ async def getting_number_of_gan_image(msg: types.Message, state: FSMContext):
 
     await state.update_data(style_msg=msg)
     await States.init_state.set()
-    await msg.answer(messages.MESSAGES["IMAGE_RECEIVED"][await get_language(state)], reply_markup=MAIN_MENU)
+    await msg.answer(messages.MESSAGES["STYLE_IMAGE_CHOSEN"][await get_language(state)], reply_markup=MAIN_MENU)
 
 
 async def process_affect_command(msg: types.Message, state: FSMContext):
-    markup = create_markup([list(map(lambda x: str(x), range(1, prop.AFFECT_MAX+1))), "/cancel"])
+    markup = create_markup([list(map(lambda x: str(x), range(1, prop.AFFECT_MAX+1))), ["/cancel", "/help"]])
     await States.waiting_for_affect.set()
     await msg.answer(messages.COMMANDS["AFFECT"][await get_language(state)], reply_markup=markup)
 
@@ -287,7 +301,7 @@ async def process_make_magic_command(msg: types.Message, state: FSMContext):
         await msg.answer(messages.error("STYLE_IMAGE_NOT_RECEIVED", await get_language(state)), reply_markup=MAIN_MENU)
     else:
         await state.update_data(is_running=True)
-        await msg.answer(messages.MESSAGES["WAIT_FOR_SEVERAL_MINUTES"][await get_language(state)])
+        await msg.answer(messages.MESSAGES["WAIT_FOR_FEW_MINUTES"][await get_language(state)])
 
         if style_msg.text != None:
             # making gan style transfer
@@ -304,25 +318,29 @@ async def unknown_message(msg: types.Message, state: FSMContext):
 
 
 def register_handlers(dp: Dispatcher):
-    dp.register_message_handler(process_start_command, commands=["start"], state="*")
-    dp.register_message_handler(process_help_command, commands=["help"], state="*")
+    dp.register_message_handler(process_start_command, commands=["start"], state="*") 
     dp.register_message_handler(process_cancel_command, commands=["cancel"], state="*")
 
     dp.register_message_handler(process_language_command, commands=["language"], state="*")
     dp.register_message_handler(choosing_language, content_types=types.message.ContentType.TEXT, state=States.waiting_for_language)
 
     dp.register_message_handler(process_image_command, commands=["image"], state="*")
+    dp.register_message_handler(process_image_help_command, commands=["help"], state=States.waiting_for_content_image)
     dp.register_message_handler(getting_content_image, content_types=types.message.ContentType.PHOTO, state=States.waiting_for_content_image)
 
     dp.register_message_handler(process_style_command, commands=["style"], state="*")
-    dp.register_message_handler(get_all_gan_images, commands=["get_all_gan_images"], state="*")
+    dp.register_message_handler(get_all_gan_images, commands=["get_all_predefined_styles"], state="*")
+    dp.register_message_handler(process_style_help_command, commands=["help"], state=States.waiting_for_style_image)
     dp.register_message_handler(getting_number_of_gan_image, content_types=types.message.ContentType.TEXT, state=States.waiting_for_style_image)
     dp.register_message_handler(getting_style_image, content_types=types.message.ContentType.PHOTO, state=States.waiting_for_style_image)
  
     dp.register_message_handler(process_affect_command, commands=["affect"], state="*")
+    dp.register_message_handler(process_affect_help_command, commands=["help"], state=States.waiting_for_affect)
     dp.register_message_handler(getting_affect, content_types=types.message.ContentType.TEXT, state=States.waiting_for_affect)
- 
+
     dp.register_message_handler(process_make_magic_command, commands=["make_magic"], state="*")
+
+    dp.register_message_handler(process_help_command, commands=["help"], state="*")
 
     dp.register_message_handler(unknown_message, content_types=types.message.ContentType.ANY, state="*")
 

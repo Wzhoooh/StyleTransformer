@@ -24,22 +24,38 @@ BUTTONS = {
 
 COMMANDS = {
     "START": {
-        LANGS[0]: "Hello! This bot can do style transfer. To load source image and image with \
-style, use /image and /style commands, respectively. To change affect of style image on result use /affect \
-command. To start style transfer, use /make_magic command.",
-        LANGS[1]: "Добрый день! Этот бот умеет делать перенос стиля. Чтобы загрузить исходное \
-изображение и изображение со стилем, используйте команды /image и /style соответственно. Для того, чтобы \
-изменить влияние изображения со стилем на итоговое изображение, изпользуйте команду /affect. Для того, \
-чтобы запустить перенос стиля, используйте команду /make_magic."
+        LANGS[0]: "Hello! This bot can do simple style transfer and GAN style transfer",
+        LANGS[1]: "Добрый день! Этот бот умеет делать простой перенос стиля и перенос стиля с помощью генеративно-состязательной сети"
     },
+    "IMAGE_HELP": {
+        LANGS[0]: "Use \U0001f4ce to load source image",
+        LANGS[1]: "Используйте \U0001f4ce для загрузки исходного изображения"
+    },
+    "STYLE_HELP": {
+        LANGS[0]: ("Use \U0001f4ce to load style image for simple style transfer",
+"Use buttons 1 - 4 to choose number of style image for GAN style transfer",
+"Use command /get_all_predefined_styles to view all images for GAN style transfer"),
+        LANGS[1]: ("Используйте \U0001f4ce для загрузки изображения со стилем для простого переноса стиля",
+"Используйте кнопки 1 - 4 для выбора номера изображения для переноса стиля генеративно-состязательной сетью",
+"Используйте команду /get_all_predefined_styles, чтобы посмотреть все изображения для переноса стиля с помощью\
+генеративно-состязательной сети")
+    },
+    "AFFECT_HELP": {
+        LANGS[0]: "Use buttons 1 - 10 to select the degree of affect of the style image on final \
+image (works only for simple style transfer)",
+        LANGS[1]: "Используйте кнопки 1 - 10 для выбора степени влияния изображения со стилем на итоговое \
+изображение (работает только для простого переноса стиля)"
+    },   
     "HELP": {
-        LANGS[0]: "To load source image and image with style, use /image and /style commands, \
-respectively. To change affect of style image on result use /affect command. To start style transfer, \
-use /make_magic command.",
-        LANGS[1]: "Чтобы загрузить исходное изображение и изображение со стилем, используйте \
-команды /image и /style соответственно. Для того, чтобы изменить влияние изображения со стилем на \
-итоговое изображение, изпользуйте команду /affect. Для того, чтобы запустить перенос стиля, используйте \
-команду /make_magic."
+        LANGS[0]: ("Use /image command to load source image",
+"Use /style command to load style image (for simple style transfer), or to choose style image (for GAN style transfer)",
+"Use /affect command to select the degree of affect of the style image on final \
+image (works only for simple style transfer)", "Use /make_magic command to start style transfer"),
+        LANGS[1]: ("Используйте команду /image, чтобы загрузить исходное изображение",
+"Используйте команду /style, чтобы загрузить изображение со стилем (для простого переноса стиля), \
+или для выбора изображения со стилем (для переноса стиля с помощью генеративно-состязательной сети)",
+"Используйте команду /affect для выбора степени влияния изображения со стилем на итоговое изображение \
+(работает только для простого переноса стиля)", "Используйте команду /make_magic, чтобы начать перенос стиля")
     },
     "CANCEL": {
         LANGS[0]: "Cancelled",
@@ -60,20 +76,29 @@ MESSAGES = {
         LANGS[0]: "Send me source image",
         LANGS[1]: "Пошлите мне исходное изображение"
     },
-    "SEND_ME_STYLE_IMAGE": {
-        LANGS[0]: "Send me style image",
-        LANGS[1]: "Пошлите мне изображение со стилем"
+    "CONTENT_IMAGE_RECEIVED": {
+        LANGS[0]: "Content image received",
+        LANGS[1]: "Исходное изображение получено"
     },
-    "IMAGE_RECEIVED": {
-        LANGS[0]: "Image received",
-        LANGS[1]: "Изображение получено"
+    "CHOOSE_STYLE_IMAGE": {
+        LANGS[0]: "Send me style image for simple style transfer or choose style image for GAN style transfer",
+        LANGS[1]: "Пошлите мне изображение со стилем для простого переноса стиля, или выберите изображение со \
+стилем для переноса стиля с помощью генеративно-состязательной сети"
+    },
+    "STYLE_IMAGE_RECEIVED": {
+        LANGS[0]: "Style image received",
+        LANGS[1]: "Изображение со стилем получено"
+    },
+    "STYLE_IMAGE_CHOSEN": {
+        LANGS[0]: "Style image chosen",
+        LANGS[1]: "Изображение со стилем выбрано"
     },
     "AFFECT_CHANGED": {
         LANGS[0]: "Style image affect changed",
         LANGS[1]: "Влияние изображения со стилем изменено"
     },
-    "WAIT_FOR_SEVERAL_MINUTES": {
-        LANGS[0]: "Please wait for several minutes",
+    "WAIT_FOR_FEW_MINUTES": {
+        LANGS[0]: "Please wait for a few minutes",
         LANGS[1]: "Пожалуйста, подождите несколько минут"
     },
     "WARNING": {
